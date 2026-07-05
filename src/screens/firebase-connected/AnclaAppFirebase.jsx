@@ -31,10 +31,10 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { doc, runTransaction } from "firebase/firestore";
-import { db } from "../firebase";
-import { AuthProvider, useAuth } from "../context/AuthContext";
-import { useUserCollection } from "../hooks/useUserCollection";
-import { useUserDoc } from "../hooks/useUserDoc";
+import { db } from "../../firebase";
+import { AuthProvider, useAuth } from "../../context/AuthContext";
+import { useUserCollection } from "../../hooks/useUserCollection";
+import { useUserDoc } from "../../hooks/useUserDoc";
 
 // ---------------------------------------------------------------------------
 // ANCLA — versión conectada a Firebase.
