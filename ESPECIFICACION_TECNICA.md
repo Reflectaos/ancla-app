@@ -258,7 +258,7 @@ Esto es lo que hoy es **UI funcional con datos mockeados o incompletos**, no lis
 
 El prototipo no tiene tests. Antes de agregar funcionalidad nueva, priorizar:
 
-1. **Tests unitarios** de la lógica de bola de nieve en `handlePay()` (`AnclaAppFirebase.jsx`) — es la lógica de negocio más delicada del proyecto (recalcula dos documentos de Firestore atómicamente... o debería). **Nota de bug potencial:** la actualización de la deuda actual y la siguiente en `handlePay` se hacen en dos llamadas `await` separadas, no en una transacción de Firestore (`runTransaction`). Si dos abonos ocurren casi simultáneamente (ej. dos pestañas abiertas), puede haber condición de carrera. Recomendación: migrar a `runTransaction()`.
+1. **Tests unitarios** de la lógica de bola de nieve en `handlePay()` (`AnclaAppFirebase.jsx`) — es la lógica de negocio más delicada del proyecto. **✅ Resuelto (ver changelog):** `handlePay` ahora usa `runTransaction()` — la deuda actual y la siguiente se leen y escriben de forma atómica, eliminando la condición de carrera que existía cuando ambas escrituras eran `await` independientes. Aun así, agregar tests que confirmen el comportamiento bajo abonos concurrentes (con el Firebase Emulator Suite) sigue siendo recomendable.
 2. **Tests de reglas de Firestore** con el Firebase Emulator Suite (`firebase emulators:exec`) para validar que un usuario no pueda leer/escribir datos de otro.
 3. **Tests de componentes** (React Testing Library) para los flujos críticos: registro, primer inventario, primer abono.
 
@@ -292,11 +292,15 @@ Pendiente de auditoría completa. Puntos ya identificados a revisar:
 
 Por orden de dependencia técnica, no de prioridad de negocio:
 1. Verificación de correo + recuperación de contraseña (requisito base de cualquier auth en producción).
-2. Migrar `handlePay` a transacciones de Firestore (bug potencial de sección 10).
+2. ~~Migrar `handlePay` a transacciones de Firestore~~ — **resuelto**, ver changelog.
 3. Reseteo semanal automático de revisión (Cloud Function programada).
 4. Rediseño del Modo Compartido como relación bidireccional real entre dos cuentas.
 5. Integración bancaria opcional (Plaid o equivalente regional) — **mantener entrada manual como alternativa permanente**, no reemplazo (decisión de producto explícita en el Documento Maestro).
 6. Coach conversacional con IA para la revisión semanal.
+
+## 17. Changelog
+
+- **v1.1** — `handlePay()` migrado de dos escrituras `await` independientes a una única `runTransaction()` de Firestore. Elimina la condición de carrera descrita en v1.0 cuando dos abonos ocurrían casi simultáneamente (ej. dos pestañas abiertas): antes, el efecto de bola de nieve podía calcularse sobre un saldo ya desactualizado; ahora Firestore garantiza que la lectura y escritura de la deuda actual y la siguiente ocurran como una sola operación atómica, con reintento automático si algo cambió entre medio.
 
 ---
 
@@ -308,7 +312,7 @@ Lista corta para convertir directamente en tickets:
 - [ ] Dividir `AnclaAppFirebase.jsx` en componentes por feature (sección 3.2).
 - [ ] Centralizar paleta/tipografía en `src/theme/`.
 - [ ] Cargar las fuentes reales (Source Serif 4, Inter, IBM Plex Mono) vía `@font-face` o Google Fonts.
-- [ ] Migrar `handlePay` a `runTransaction()`.
+- [x] Migrar `handlePay` a `runTransaction()` — resuelto.
 - [ ] Implementar reseteo semanal de `reviewCompletedThisWeek`.
 - [ ] Agregar verificación de correo y recuperación de contraseña.
 - [ ] Agregar reglas de validación de esquema en `firestore.rules`.

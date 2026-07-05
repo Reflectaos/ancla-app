@@ -30,6 +30,8 @@ import {
   Copy,
   CheckCircle2,
 } from "lucide-react";
+import { doc, runTransaction } from "firebase/firestore";
+import { db } from "../firebase";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { useUserCollection } from "../hooks/useUserCollection";
 import { useUserDoc } from "../hooks/useUserDoc";
@@ -941,22 +943,58 @@ function MainApp() {
     setOnboardPhase("done");
   };
 
+  // handlePay usa una transacción de Firestore (runTransaction) en vez de
+  // dos escrituras independientes. Antes, la deuda actual y la siguiente se
+  // actualizaban en dos "await" separados: si dos abonos llegaban casi al
+  // mismo tiempo (dos pestañas abiertas, por ejemplo), el efecto de bola de
+  // nieve podía calcularse sobre datos ya obsoletos (condición de carrera).
+  // runTransaction lee ambos documentos, calcula, y escribe todo de forma
+  // atómica — si algo cambió entre la lectura y la escritura, Firestore
+  // reintenta la transacción automáticamente en vez de perder datos.
   const handlePay = async (debt, amount) => {
+    if (!currentUser) return;
+
     const sorted = [...debtsHook.items].filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining);
     const idx = sorted.findIndex((d) => d.id === debt.id);
-    const newRemaining = debt.remaining - amount;
-    if (newRemaining >= 0) {
-      await debtsHook.update(debt.id, { remaining: newRemaining });
-      if (newRemaining === 0) setCelebrate(debt.name);
-    } else {
-      // bola de nieve: liquida esta y empuja el sobrante a la siguiente
-      const overflow = Math.abs(newRemaining);
-      await debtsHook.update(debt.id, { remaining: 0 });
-      setCelebrate(debt.name);
-      const next = sorted[idx + 1];
-      if (next) {
-        await debtsHook.update(next.id, { remaining: Math.max(0, next.remaining - overflow) });
-      }
+    const next = sorted[idx + 1] || null;
+
+    const currentRef = doc(db, "users", currentUser.uid, "debts", debt.id);
+    const nextRef = next ? doc(db, "users", currentUser.uid, "debts", next.id) : null;
+
+    let liquidatedName = null;
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        // Regla de Firestore: TODAS las lecturas de una transacción deben
+        // ocurrir antes que cualquier escritura. Por eso leemos primero
+        // ambos documentos y solo después decidimos qué escribir.
+        const currentSnap = await transaction.get(currentRef);
+        if (!currentSnap.exists()) throw new Error("Esa deuda ya no existe.");
+        const currentData = currentSnap.data();
+
+        const nextSnap = nextRef ? await transaction.get(nextRef) : null;
+
+        const newRemaining = currentData.remaining - amount;
+
+        if (newRemaining >= 0) {
+          transaction.update(currentRef, { remaining: newRemaining });
+          if (newRemaining === 0) liquidatedName = currentData.name;
+        } else {
+          // Bola de nieve: esta deuda se liquida y el sobrante empuja a la
+          // siguiente, leída con el dato más reciente posible.
+          const overflow = Math.abs(newRemaining);
+          transaction.update(currentRef, { remaining: 0 });
+          liquidatedName = currentData.name;
+          if (nextSnap && nextSnap.exists()) {
+            const nextData = nextSnap.data();
+            transaction.update(nextRef, { remaining: Math.max(0, nextData.remaining - overflow) });
+          }
+        }
+      });
+
+      if (liquidatedName) setCelebrate(liquidatedName);
+    } catch (error) {
+      console.error("No se pudo registrar el abono:", error);
     }
   };
 
