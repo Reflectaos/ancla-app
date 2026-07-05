@@ -85,6 +85,11 @@ const moods = [
 ];
 const goalColors = ["#2F6F63", "#C9973F", "#7C7FA6", "#9E6B6B", "#5E9C8B"];
 const MORE_KEYS = ["conversations", "health", "partner", "about"];
+const INCOME_FREQUENCIES = [
+  { key: "semanal", label: "Semanal", weeks: 1 },
+  { key: "quincenal", label: "Quincenal", weeks: 2 },
+  { key: "mensual", label: "Mensual", weeks: 4.345 },
+];
 
 // --- Piezas reutilizables ----------------------------------------------------
 function GhostButton({ children, onClick, style }) {
@@ -413,9 +418,39 @@ function RealityReveal({ localDebts, onContinue, saving }) {
 // =============================================================================
 // PANTALLAS PRINCIPALES (leen y escriben en Firestore vía props)
 // =============================================================================
-function TruthPanel({ debts, streak, onGoRadar, name, shared }) {
+function IncomeForm({ initialAmount, initialFrequency, onSave, onCancel }) {
+  const [amount, setAmount] = useState(initialAmount ? String(initialAmount) : "");
+  const [frequency, setFrequency] = useState(initialFrequency || "quincenal");
+  const submit = () => { const val = parseFloat(amount) || 0; if (val <= 0) return; onSave(val, frequency); };
+  return (
+    <div className="rounded-xl p-5" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+      <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>¿Cuánto ingresas, y cada cuánto?</p>
+      <p className="text-[10px] mb-4 leading-relaxed" style={{ ...sans, color: palette.ash }}>Esto se queda solo entre tú y tu cuenta.</p>
+      <div className="flex items-center gap-2 mb-4">
+        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
+        <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      </div>
+      <div className="flex gap-2 mb-5">
+        {INCOME_FREQUENCIES.map((f) => (
+          <button key={f.key} onClick={() => setFrequency(f.key)} className="flex-1 py-2 rounded-lg text-xs transition-all duration-200"
+            style={{ ...sans, background: frequency === f.key ? palette.pine : "transparent", color: frequency === f.key ? "#fff" : palette.paperText, border: `1px solid ${frequency === f.key ? palette.pine : palette.paperLine}` }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        {onCancel && <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>}
+        <PrimaryButton onClick={submit} disabled={!amount} style={{ flex: 1 }}>Guardar <Check size={16} /></PrimaryButton>
+      </div>
+    </div>
+  );
+}
+function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFrequency, onSetIncome }) {
+  const [editingIncome, setEditingIncome] = useState(false);
   const total = debts.reduce((s, d) => s + d.remaining, 0);
-  const weeklyAvailable = 1450;
+  const freq = INCOME_FREQUENCIES.find((f) => f.key === incomeFrequency) || INCOME_FREQUENCIES[1];
+  const weeklyAvailable = income ? Math.round(income / freq.weeks) : null;
   const smallest = debts.filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining)[0];
   return (
     <div className="p-6">
@@ -427,10 +462,27 @@ function TruthPanel({ debts, streak, onGoRadar, name, shared }) {
           <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Esto debes hoy</p>
           <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${total.toLocaleString()}</p>
         </div>
-        <div className="rounded-xl p-5" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-          <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
-          <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${weeklyAvailable.toLocaleString()}</p>
-        </div>
+        {editingIncome ? (
+          <IncomeForm
+            initialAmount={income}
+            initialFrequency={incomeFrequency}
+            onCancel={() => setEditingIncome(false)}
+            onSave={(amt, freqKey) => { onSetIncome(amt, freqKey); setEditingIncome(false); }}
+          />
+        ) : weeklyAvailable !== null ? (
+          <button onClick={() => setEditingIncome(true)} className="w-full rounded-xl p-5 text-left" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
+              <Pencil size={12} color={palette.ash} />
+            </div>
+            <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${weeklyAvailable.toLocaleString()}</p>
+          </button>
+        ) : (
+          <button onClick={() => setEditingIncome(true)} className="w-full rounded-xl p-5 text-left" style={{ background: palette.paperCard, border: `1px dashed ${palette.paperLine}` }}>
+            <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
+            <p className="text-sm flex items-center gap-1.5" style={{ ...sans, color: palette.pine }}><Plus size={13} /> Agrega tu ingreso para verlo</p>
+          </button>
+        )}
         <div className="rounded-xl p-5 flex items-center justify-between" style={{ background: palette.pine }}>
           <div>
             <p className="text-xs mb-1" style={{ ...sans, color: "#DCEAE6" }}>Racha de honestidad</p>
@@ -1257,6 +1309,10 @@ function MainApp() {
     userDoc.update({ partner: { ...userDoc.data?.partner, ...partial } });
   };
 
+  const updateIncome = (amount, frequency) => {
+    userDoc.update({ income: amount, incomeFrequency: frequency });
+  };
+
   const completeReview = () => {
     userDoc.update({ reviewCompletedThisWeek: true, streak: (userDoc.data?.streak || 1) + 1 });
   };
@@ -1289,7 +1345,7 @@ function MainApp() {
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex flex-col relative" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)", background: palette.paper }}>
       <div className="flex-1 overflow-y-auto">
-        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} />}
+        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} income={userDoc.data?.income} incomeFrequency={userDoc.data?.incomeFrequency} onSetIncome={updateIncome} />}
         {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} shared={isConnected && partner.sharing.debts} />}
         {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
         {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
