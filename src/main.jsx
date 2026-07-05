@@ -1,14 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
-import AnclaAppCompleto from "./screens/nivel2-completo/AnclaAppCompleto.jsx";
+import AnclaAppFirebase from "./screens/firebase-connected/AnclaAppFirebase.jsx";
 
-// Version activa: Nivel 2 completo -> login + onboarding + panel de verdad +
-// radar de deudas + conversaciones pendientes + proposito + score de salud
-// financiera + modo compartido con pareja + diario + revision semanal.
+// Version activa: CONECTADA A FIREBASE de verdad.
+// Auth real (Firebase Authentication) + datos persistentes por usuario
+// (Firestore): deudas, metas, diario, pareja y racha ya no se pierden
+// al recargar la pagina.
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AnclaAppCompleto />
+    <AnclaAppFirebase />
   </React.StrictMode>
 );
