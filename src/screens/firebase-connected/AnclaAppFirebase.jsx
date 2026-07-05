@@ -1027,6 +1027,30 @@ function ConnectedPartner({ partner, onToggle, onDisconnect }) {
     </>
   );
 }
+function PartnerPaywall({ onUnlockDemo }) {
+  return (
+    <div className="p-6">
+      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.dawn }}>Ancla Plus</p>
+      <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>Reconstruir en pareja.</h2>
+      <p className="text-sm mb-6 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>
+        El Modo Compartido es parte de Ancla Plus. Tu Nivel 1 — inventario, radar de deudas, hábito ancla, panel de verdad — es y será siempre gratis.
+      </p>
+      <div className="rounded-2xl p-6 mb-5 text-center" style={{ background: palette.ink }}>
+        <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: palette.dawn }}>
+          <Lock size={20} color={palette.ink} />
+        </div>
+        <p className="text-sm mb-1" style={{ ...serif, color: palette.inkText }}>Comparte tu reconstrucción</p>
+        <p className="text-xs mb-5 leading-relaxed" style={{ ...sans, color: palette.ash }}>
+          Invita a tu pareja y decide, módulo por módulo, qué ve. El Diario Financiero permanece privado por defecto.
+        </p>
+        <PrimaryButton onClick={onUnlockDemo} style={{ width: "100%" }}>Ver planes de Ancla Plus <ArrowRight size={16} /></PrimaryButton>
+      </div>
+      <p className="text-[10px] text-center leading-relaxed" style={{ ...sans, color: palette.ash }}>
+        Nota de desarrollo: todavía no hay cobro real conectado (Stripe/RevenueCat). Este botón es un marcador de posición para poder seguir construyendo y probando el resto de Ancla Plus.
+      </p>
+    </div>
+  );
+}
 function PartnerScreen({ partner, updatePartner }) {
   const sendInvite = (n, e) => updatePartner({ status: "pending", name: n, email: e });
   const cancelInvite = () => updatePartner({ status: "none", name: "", email: "" });
@@ -1107,7 +1131,7 @@ function HealthScoreScreen({ debts, streak }) {
 function MoreMenu({ onSelect, onClose }) {
   const items = [
     { key: "health", label: "Salud financiera", icon: Activity, desc: "Tu score propio: claridad, constancia, progreso." },
-    { key: "partner", label: "Pareja", icon: Users, desc: "Modo compartido con quien tú decidas." },
+    { key: "partner", label: "Pareja", icon: Users, desc: "Modo compartido con quien tú decidas.", plus: true },
     { key: "about", label: "Acerca de", icon: Info, desc: "Sobre ANCLA y el libro que le dio origen." },
   ];
   return (
@@ -1124,7 +1148,10 @@ function MoreMenu({ onSelect, onClose }) {
                 <Icon size={16} color={palette.pineDeep} />
               </div>
               <div>
-                <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{it.label}</p>
+                <p className="text-sm flex items-center gap-1.5" style={{ ...sans, color: palette.paperText }}>
+                  {it.label}
+                  {it.plus && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ ...sans, background: palette.dawnSoft, color: palette.ink }}>Plus</span>}
+                </p>
                 <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{it.desc}</p>
               </div>
             </button>
@@ -1145,7 +1172,7 @@ function BottomNav({ tab, setTab, onOpenMore }) {
   ];
   const moreActive = MORE_KEYS.includes(tab);
   return (
-    <div className="flex items-center gap-1 py-3 px-2 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
+    <div className="flex items-center justify-center gap-1 py-3 px-2 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
       {items.map((it) => {
         const Icon = it.icon;
         const active = tab === it.key;
@@ -1329,6 +1356,7 @@ function MainApp() {
   }
 
   const partner = userDoc.data?.partner || { status: "none", name: "", email: "", sharing: { debts: false, purpose: false, panel: false, diary: false } };
+  const isPlus = userDoc.data?.plan === "plus";
   const isConnected = partner.status === "connected";
   const streak = userDoc.data?.streak || 1;
 
@@ -1339,7 +1367,11 @@ function MainApp() {
         {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} onDeleteDebt={handleDeleteDebt} shared={isConnected && partner.sharing.debts} />}
         {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
-        {tab === "partner" && <PartnerScreen partner={partner} updatePartner={updatePartner} />}
+        {tab === "partner" && (
+          isPlus
+            ? <PartnerScreen partner={partner} updatePartner={updatePartner} />
+            : <PartnerPaywall onUnlockDemo={() => userDoc.update({ plan: "plus" })} />
+        )}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}
         {tab === "about" && <AboutScreen />}

@@ -1,7 +1,7 @@
 # ESPECIFICACIÓN TÉCNICA — ANCLA
 ## Manual técnico para el equipo de desarrollo
 
-Versión: 2.1 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1370 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
+Versión: 2.2 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1400 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
 
 ---
 
@@ -93,6 +93,7 @@ Documento raíz por usuario.
 | `incomeFrequency` | string | **Nuevo.** Uno de `semanal` \| `quincenal` \| `mensual`. Define el divisor usado para calcular el disponible semanal (`INCOME_FREQUENCIES` en el código: semanal=1, quincenal=2, mensual=4.345) |
 | `weeklySpent` | number | **Nuevo.** Acumulado de abonos a deudas hechos durante la semana en curso |
 | `weeklySpentWeekKey` | string | **Nuevo.** Fecha (`YYYY-MM-DD`) del lunes de la semana a la que corresponde `weeklySpent`, calculada por `getWeekKey()`. Si no coincide con la semana actual al leer, el disponible se calcula ignorando ese acumulado (ver 4.2 nota sobre reseteo perezoso) |
+| `plan` | string | **Nuevo.** `"free"` (default — campo ausente se trata como free) \| `"plus"`. Primer campo de monetización del proyecto — hoy solo gatea la pestaña Pareja (ver sección 9 de este documento y `DOCUMENTO_MAESTRO.md`, sección 14, "Modelo de monetización") |
 
 ### 4.2 Subcolección `users/{uid}/debts/{debtId}`
 
@@ -221,6 +222,7 @@ Actualizado respecto a v1.0:
 4. **"Disponible esta semana"** — **ya no es un mock.** Se calcula en el cliente a partir de `income`/`incomeFrequency` menos `weeklySpent` de la semana en curso. El reseteo semanal de `weeklySpent` es **perezoso** (se calcula al leer, comparando `weeklySpentWeekKey` contra la semana actual con `getWeekKey()`), no requiere Cloud Function — pero **si el usuario nunca vuelve a abonar en una semana nueva, `weeklySpent` en Firestore queda con el valor viejo indefinidamente** (solo se corrige la próxima vez que se escribe, no hay corrección proactiva). Esto es intencional para evitar escrituras innecesarias, pero vale la pena documentarlo si alguien construye un reporte histórico directo desde Firestore sin pasar por la lógica del cliente.
 5. **Score de Salud Financiera** — sin cambios desde v1.0, se recalcula en cada render del cliente.
 6. ~~**Envío real de plantillas de conversación**~~ — ya no aplica, el módulo completo de Conversaciones fue retirado.
+7. **Paywall de Pareja (`plan: "plus"`)** — **nuevo, y es un placeholder deliberado.** El botón "Ver planes de Ancla Plus" en `PartnerPaywall` hoy simplemente escribe `plan: "plus"` en Firestore — no hay ningún cobro real conectado. Falta: integrar una pasarela real (Stripe, RevenueCat, o billing nativo de App Store/Google Play si se empaqueta como app móvil), una pantalla de selección de plan/precio, manejo de renovación y cancelación, y — muy importante — mover la validación de "¿tiene Plus?" a algo que no pueda falsificar el propio cliente (hoy cualquiera con acceso a la consola de Firestore podría escribirse `plan: "plus"` a sí mismo; las reglas de Firestore no lo impiden porque no validan forma de los datos, ver sección 5).
 
 ---
 
@@ -299,7 +301,8 @@ Para el "por qué" detrás de cada uno de estos términos, ver `DOCUMENTO_MAESTR
 
 ## 17. Changelog
 
-- **v2.1** (esta versión): cada `DebtRow` del Radar de Deudas ahora muestra el porcentaje pagado como texto y el historial de abonos (monto + fecha) dentro de la misma tarjeta. Nuevo campo `payments` en `debts`. La lógica de bola de nieve registra el abono real aplicado tanto en la deuda liquidada como en la siguiente que recibe el sobrante, dentro de la misma transacción atómica de `handlePay`.
+- **v2.2** (esta versión): primer paywall real del proyecto. La pestaña Pareja ahora está detrás de `plan === "plus"` en `users/{uid}` — si el usuario no tiene Plus, ve `PartnerPaywall` (explicación + botón de "activar" que hoy es un marcador de posición sin cobro real, documentado como tal en el propio código y en sección 9, punto 7). El botón "Pareja" dentro del menú "Más" ahora muestra una etiqueta "Plus". Los íconos de la navegación inferior se centraron (antes alineados a la izquierda).
+- **v2.1**: cada `DebtRow` del Radar de Deudas ahora muestra el porcentaje pagado como texto y el historial de abonos (monto + fecha) dentro de la misma tarjeta. Nuevo campo `payments` en `debts`. La lógica de bola de nieve registra el abono real aplicado tanto en la deuda liquidada como en la siguiente que recibe el sobrante, dentro de la misma transacción atómica de `handlePay`.
 - **v2.0**:
   - **Retirado por completo el módulo de Conversaciones Pendientes** (`ConversationsScreen`, `ConversationCard`, `buildTemplate()`, y los campos `person`/`talked` en `debts` que solo existían para esto). Documentos de deudas creados antes de este cambio pueden conservar esos campos como datos huérfanos sin efecto en la UI.
   - **Bug real encontrado y corregido antes del retiro** (por si el patrón se repite en otra parte del código): el formulario de "Agregar deuda" introdujo un campo de texto libre llamado `person`, con un significado distinto al `person` booleano que ya usaba el resto del código (`true` = "involucra a una persona, no un banco"). Si se dejaba vacío, la deuda quedaba invisible para el filtro de Conversaciones sin ningún error visible — lección para el equipo: cuidado con reutilizar nombres de campo con semántica distinta entre formularios y el modelo de datos ya establecido.
