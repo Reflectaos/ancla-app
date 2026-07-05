@@ -34,7 +34,7 @@ import {
   Pencil,
   MoreHorizontal,
 } from "lucide-react";
-import { doc, runTransaction } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { useUserCollection } from "../../hooks/useUserCollection";
@@ -90,6 +90,16 @@ const INCOME_FREQUENCIES = [
   { key: "quincenal", label: "Quincenal", weeks: 2 },
   { key: "mensual", label: "Mensual", weeks: 4.345 },
 ];
+// Identifica la semana en curso por el lunes correspondiente (YYYY-MM-DD),
+// para saber si "lo gastado esta semana" sigue vigente o ya hay que
+// empezar a contar de cero.
+function getWeekKey(date) {
+  const d = new Date(date);
+  const day = (d.getDay() + 6) % 7; // lunes = 0
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
 
 // --- Piezas reutilizables ----------------------------------------------------
 function GhostButton({ children, onClick, style }) {
@@ -446,11 +456,12 @@ function IncomeForm({ initialAmount, initialFrequency, onSave, onCancel }) {
     </div>
   );
 }
-function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFrequency, onSetIncome }) {
+function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFrequency, onSetIncome, weeklySpent, weeklySpentWeekKey }) {
   const [editingIncome, setEditingIncome] = useState(false);
   const total = debts.reduce((s, d) => s + d.remaining, 0);
   const freq = INCOME_FREQUENCIES.find((f) => f.key === incomeFrequency) || INCOME_FREQUENCIES[1];
-  const weeklyAvailable = income ? Math.round(income / freq.weeks) : null;
+  const spentThisWeek = weeklySpentWeekKey === getWeekKey(new Date()) ? (weeklySpent || 0) : 0;
+  const weeklyAvailable = income ? Math.round(income / freq.weeks) - spentThisWeek : null;
   const smallest = debts.filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining)[0];
   return (
     <div className="p-6">
@@ -476,6 +487,7 @@ function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFreq
               <Pencil size={12} color={palette.ash} />
             </div>
             <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${weeklyAvailable.toLocaleString()}</p>
+            {spentThisWeek > 0 && <p className="text-[10px] mt-1" style={{ ...sans, color: palette.ash }}>Ya abonaste ${spentThisWeek.toLocaleString()} esta semana</p>}
           </button>
         ) : (
           <button onClick={() => setEditingIncome(true)} className="w-full rounded-xl p-5 text-left" style={{ background: palette.paperCard, border: `1px dashed ${palette.paperLine}` }}>
@@ -516,9 +528,10 @@ function CelebrationModal({ debtName, onClose }) {
     </div>
   );
 }
-function DebtRow({ debt, isTarget, onPay }) {
+function DebtRow({ debt, isTarget, onPay, onDelete }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const pct = Math.max(0, Math.min(100, ((debt.original - debt.remaining) / debt.original) * 100));
   const liquidated = debt.remaining <= 0;
   return (
@@ -529,33 +542,48 @@ function DebtRow({ debt, isTarget, onPay }) {
           <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{debt.name}</p>
         </div>
         {liquidated ? (
-          <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={12} /> Liquidada</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={12} /> Liquidada</span>
+            {onDelete && <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar deuda liquidada"><Trash2 size={14} color={palette.ash} /></button>}
+          </div>
         ) : (
           <span className="text-sm" style={{ ...mono, color: palette.paperText }}>${debt.remaining.toLocaleString()}</span>
         )}
       </div>
-      <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: palette.paperDim }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: liquidated ? palette.pine : `linear-gradient(90deg, ${palette.pineDeep}, ${palette.pine})` }} />
-      </div>
-      {!liquidated && (
-        !open ? (
-          <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Abonar</button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
-            <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-            <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onPay(debt, val); setAmount(""); setOpen(false); }}
-              className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
+      {confirmDelete ? (
+        <div className="rounded-lg p-3" style={{ background: palette.paper, border: `1px solid ${palette.errorText}` }}>
+          <p className="text-xs mb-3" style={{ ...sans, color: palette.paperText }}>¿Eliminar "{debt.name}" de tu historial? No se puede deshacer.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmDelete(false)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText }}>Cancelar</button>
+            <button onClick={() => onDelete(debt.id)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, background: palette.errorText, color: "#fff" }}>Eliminar</button>
           </div>
-        )
+        </div>
+      ) : (
+        <>
+          <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: palette.paperDim }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: liquidated ? palette.pine : `linear-gradient(90deg, ${palette.pineDeep}, ${palette.pine})` }} />
+          </div>
+          {!liquidated && (
+            !open ? (
+              <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Abonar</button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
+                <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+                <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onPay(debt, val); setAmount(""); setOpen(false); }}
+                  className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
+              </div>
+            )
+          )}
+        </>
       )}
     </div>
   );
 }
 function AddDebtForm({ onAdd, onCancel }) {
   const [name, setName] = useState("");
-  const [isPerson, setIsPerson] = useState(false);
+  const [isPerson, setIsPerson] = useState(true);
   const [original, setOriginal] = useState("");
   const submit = async () => {
     if (!name || !original) return;
@@ -587,7 +615,7 @@ function AddDebtForm({ onAdd, onCancel }) {
     </PaperCard>
   );
 }
-function DebtRadar({ debts, onPay, onAddDebt, shared }) {
+function DebtRadar({ debts, onPay, onAddDebt, onDeleteDebt, shared }) {
   const [showForm, setShowForm] = useState(false);
   const active = [...debts].filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining);
   const done = debts.filter((d) => d.remaining <= 0);
@@ -606,7 +634,7 @@ function DebtRadar({ debts, onPay, onAddDebt, shared }) {
       {done.length > 0 && (
         <>
           <p className="text-xs uppercase tracking-widest mt-6 mb-3" style={{ ...sans, color: palette.ashPaper }}>Ya liquidadas</p>
-          {done.map((d) => <DebtRow key={d.id} debt={d} isTarget={false} onPay={onPay} />)}
+          {done.map((d) => <DebtRow key={d.id} debt={d} isTarget={false} onPay={onPay} onDelete={onDeleteDebt} />)}
         </>
       )}
       <div className="mt-6">
@@ -1259,6 +1287,7 @@ function MainApp() {
 
     const currentRef = doc(db, "users", currentUser.uid, "debts", debt.id);
     const nextRef = next ? doc(db, "users", currentUser.uid, "debts", next.id) : null;
+    const userRef = doc(db, "users", currentUser.uid);
 
     let liquidatedName = null;
 
@@ -1266,12 +1295,14 @@ function MainApp() {
       await runTransaction(db, async (transaction) => {
         // Regla de Firestore: TODAS las lecturas de una transacción deben
         // ocurrir antes que cualquier escritura. Por eso leemos primero
-        // ambos documentos y solo después decidimos qué escribir.
+        // todos los documentos y solo después decidimos qué escribir.
         const currentSnap = await transaction.get(currentRef);
         if (!currentSnap.exists()) throw new Error("Esa deuda ya no existe.");
         const currentData = currentSnap.data();
 
         const nextSnap = nextRef ? await transaction.get(nextRef) : null;
+        const userSnap = await transaction.get(userRef);
+        const userData = userSnap.data() || {};
 
         const newRemaining = currentData.remaining - amount;
 
@@ -1289,12 +1320,23 @@ function MainApp() {
             transaction.update(nextRef, { remaining: Math.max(0, nextData.remaining - overflow) });
           }
         }
+
+        // Cada abono descuenta de "Disponible esta semana". Si la semana
+        // guardada ya no es la actual, se reinicia el contador en vez de
+        // seguir acumulando sobre una semana pasada.
+        const weekKey = getWeekKey(new Date());
+        const priorSpent = userData.weeklySpentWeekKey === weekKey ? (userData.weeklySpent || 0) : 0;
+        transaction.set(userRef, { weeklySpent: priorSpent + amount, weeklySpentWeekKey: weekKey, updatedAt: serverTimestamp() }, { merge: true });
       });
 
       if (liquidatedName) setCelebrate(liquidatedName);
     } catch (error) {
       console.error("No se pudo registrar el abono:", error);
     }
+  };
+
+  const handleDeleteDebt = async (debtId) => {
+    await debtsHook.remove(debtId);
   };
 
   const handleContribute = async (goal, amount) => {
@@ -1345,8 +1387,8 @@ function MainApp() {
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex flex-col relative" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)", background: palette.paper }}>
       <div className="flex-1 overflow-y-auto">
-        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} income={userDoc.data?.income} incomeFrequency={userDoc.data?.incomeFrequency} onSetIncome={updateIncome} />}
-        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} shared={isConnected && partner.sharing.debts} />}
+        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} income={userDoc.data?.income} incomeFrequency={userDoc.data?.incomeFrequency} onSetIncome={updateIncome} weeklySpent={userDoc.data?.weeklySpent} weeklySpentWeekKey={userDoc.data?.weeklySpentWeekKey} />}
+        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} onDeleteDebt={handleDeleteDebt} shared={isConnected && partner.sharing.debts} />}
         {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
         {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
