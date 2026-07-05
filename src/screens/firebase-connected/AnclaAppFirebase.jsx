@@ -189,7 +189,15 @@ function LoginScreen({ onGoSignup }) {
           <span className="text-xs tracking-widest uppercase" style={{ ...sans, color: palette.ash }}>Ancla</span>
         </div>
         <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Bienvenido de vuelta</p>
-        <h1 className="text-2xl mb-8" style={{ ...serif, color: palette.inkText }}>Tu información es solo tuya.</h1>
+        <h1 className="text-2xl mb-3" style={{ ...serif, color: palette.inkText }}>Tu información es solo tuya.</h1>
+        <div className="rounded-xl p-4 mb-8" style={{ background: palette.inkSoft, border: `1px solid ${palette.inkLine}` }}>
+          <p className="text-xs mb-1.5" style={{ ...sans, color: palette.dawnSoft }}>
+            ANCLA <span style={{ color: palette.ash }}>—</span> Acepta, Nombra, Comprende, Libérate, Avanza.
+          </p>
+          <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.ash }}>
+            La app que te acompaña a dejar de huir de tus deudas y empezar de nuevo, con honestidad.
+          </p>
+        </div>
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
         <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
         {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
