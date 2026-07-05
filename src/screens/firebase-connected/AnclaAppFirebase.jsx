@@ -26,9 +26,6 @@ import {
   Users,
   ShieldCheck,
   Activity,
-  MessageCircle,
-  Copy,
-  CheckCircle2,
   Info,
   Bell,
   Pencil,
@@ -84,7 +81,7 @@ const moods = [
   { key: "orgullo", label: "Orgullo tranquilo", color: "#C9973F" },
 ];
 const goalColors = ["#2F6F63", "#C9973F", "#7C7FA6", "#9E6B6B", "#5E9C8B"];
-const MORE_KEYS = ["conversations", "health", "partner", "about"];
+const MORE_KEYS = ["health", "partner", "about"];
 const INCOME_FREQUENCIES = [
   { key: "semanal", label: "Semanal", weeks: 1 },
   { key: "quincenal", label: "Quincenal", weeks: 2 },
@@ -332,7 +329,7 @@ function DebtCapture({ localDebts, setLocalDebts, onDone, onPauseForToday, savin
   const addDebt = () => {
     if (!name || !amount) return;
     const val = parseFloat(amount) || 0;
-    setLocalDebts([...localDebts, { tempId: Date.now(), name, original: val, remaining: val, person: true, talked: false }]);
+    setLocalDebts([...localDebts, { tempId: Date.now(), name, original: val, remaining: val }]);
     setName(""); setAmount(""); setStage("who");
   };
   const removeDebt = (tempId) => setLocalDebts(localDebts.filter((d) => d.tempId !== tempId));
@@ -583,12 +580,11 @@ function DebtRow({ debt, isTarget, onPay, onDelete }) {
 }
 function AddDebtForm({ onAdd, onCancel }) {
   const [name, setName] = useState("");
-  const [isPerson, setIsPerson] = useState(true);
   const [original, setOriginal] = useState("");
   const submit = async () => {
     if (!name || !original) return;
     const amount = parseFloat(original) || 0;
-    await onAdd({ name, person: isPerson, original: amount, remaining: amount, talked: false });
+    await onAdd({ name, original: amount, remaining: amount });
   };
   return (
     <PaperCard>
@@ -596,13 +592,6 @@ function AddDebtForm({ onAdd, onCancel }) {
       <p className="text-xs mb-4 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>No pasa nada si esta no estaba en tu inventario original.</p>
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Tarjeta de crédito, préstamo de mi hermano..."
         className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <button onClick={() => setIsPerson(!isPerson)} className="w-full rounded-lg p-3 mb-5 text-left flex items-center justify-between gap-3 transition-all duration-200"
-        style={{ background: "#FFFFFF", border: `1px solid ${isPerson ? palette.pine : palette.paperLine}`, borderWidth: isPerson ? 2 : 1 }}>
-        <span className="text-xs leading-relaxed" style={{ ...sans, color: palette.paperText }}>Es una deuda con una persona, no con un banco</span>
-        <div className="w-9 h-5 rounded-full flex-shrink-0 relative transition-all duration-200" style={{ background: isPerson ? palette.pine : palette.paperDim }}>
-          <div className="w-3.5 h-3.5 rounded-full absolute top-[3px] transition-all duration-200" style={{ background: "#fff", left: isPerson ? 18 : 3 }} />
-        </div>
-      </button>
       <div className="flex items-center gap-2 mb-5">
         <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
         <input type="number" value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Monto total"
@@ -1097,80 +1086,11 @@ function HealthScoreScreen({ debts, streak }) {
   );
 }
 
-// --- Conversaciones Pendientes -----------------------------------------------
-function buildTemplate(debt) {
-  return `Hola. Quería hablarte de lo que te debo — los $${debt.remaining.toLocaleString()} de ${debt.name.toLowerCase()}. No he podido pagarte como prometí, y quiero ser honesto contigo en vez de seguir evitándolo. ¿Podemos hablarlo?`;
-}
-function ConversationCard({ debt, onToggleTalked }) {
-  const [showTemplate, setShowTemplate] = useState(false);
-  const [text, setText] = useState(buildTemplate(debt));
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) { setCopied(false); }
-  };
-  return (
-    <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{debt.name}</p>
-          <p className="text-xs mt-0.5" style={{ ...mono, color: palette.ashPaper }}>${debt.remaining.toLocaleString()} pendientes</p>
-        </div>
-        {debt.talked ? (
-          <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><CheckCircle2 size={11} /> Ya hablado</span>
-        ) : (
-          <span className="text-xs px-2 py-1 rounded-full" style={{ background: palette.paperDim, color: palette.ashPaper, ...sans }}>Pendiente</span>
-        )}
-      </div>
-      {!showTemplate ? (
-        <div className="flex gap-2">
-          <GhostButton onClick={() => setShowTemplate(true)} style={{ flex: 1, color: palette.pine, borderColor: palette.pine }}><MessageCircle size={14} /> Ver plantilla</GhostButton>
-          <GhostButton onClick={() => onToggleTalked(debt)} style={{ flex: 1, color: debt.talked ? palette.ashPaper : palette.pineDeep, borderColor: palette.paperLine }}>
-            {debt.talked ? "Marcar pendiente" : "Ya hablé con él/ella"}
-          </GhostButton>
-        </div>
-      ) : (
-        <>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5}
-            className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none resize-none" style={{ ...sans, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-          <div className="flex gap-2">
-            <GhostButton onClick={() => setShowTemplate(false)} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cerrar</GhostButton>
-            <PrimaryButton onClick={copy} style={{ flex: 1 }}><Copy size={14} /> {copied ? "¡Copiado!" : "Copiar mensaje"}</PrimaryButton>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-function ConversationsScreen({ debts, onToggleTalked }) {
-  const personDebts = debts.filter((d) => d.person && d.remaining > 0);
-  const pending = personDebts.filter((d) => !d.talked);
-  const talked = personDebts.filter((d) => d.talked);
-  return (
-    <div className="p-6">
-      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Conversaciones Pendientes</p>
-      <h2 className="text-2xl mb-5" style={{ ...serif, color: palette.paperText }}>Las que no querías tener.</h2>
-      {personDebts.length === 0 && (
-        <div className="rounded-xl p-6 text-center" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-          <p className="text-sm" style={{ ...sans, color: palette.ashPaper }}>No tienes deudas con personas registradas todavía.</p>
-        </div>
-      )}
-      {pending.map((d) => <ConversationCard key={d.id} debt={d} onToggleTalked={onToggleTalked} />)}
-      {talked.length > 0 && (
-        <>
-          <p className="text-xs uppercase tracking-widest mt-6 mb-3" style={{ ...sans, color: palette.ashPaper }}>Ya habladas</p>
-          {talked.map((d) => <ConversationCard key={d.id} debt={d} onToggleTalked={onToggleTalked} />)}
-        </>
-      )}
-    </div>
-  );
-}
-
 // =============================================================================
 // NAVEGACIÓN INFERIOR
 // =============================================================================
 function MoreMenu({ onSelect, onClose }) {
   const items = [
-    { key: "conversations", label: "Conversaciones", icon: MessageCircle, desc: "Deudas con personas, no bancos." },
     { key: "health", label: "Salud financiera", icon: Activity, desc: "Tu score propio: claridad, constancia, progreso." },
     { key: "partner", label: "Pareja", icon: Users, desc: "Modo compartido con quien tú decidas." },
     { key: "about", label: "Acerca de", icon: Info, desc: "Sobre ANCLA y el libro que le dio origen." },
@@ -1257,7 +1177,7 @@ function MainApp() {
   const finishOnboarding = async () => {
     setSaving(true);
     for (const d of localDebts) {
-      await debtsHook.add({ name: d.name, original: d.original, remaining: d.remaining, person: d.person, talked: d.talked });
+      await debtsHook.add({ name: d.name, original: d.original, remaining: d.remaining });
     }
     setSaving(false);
     setOnboardPhase("reveal");
@@ -1343,10 +1263,6 @@ function MainApp() {
     await goalsHook.update(goal.id, { saved: Math.min(goal.target, goal.saved + amount) });
   };
 
-  const handleToggleTalked = async (debt) => {
-    await debtsHook.update(debt.id, { talked: !debt.talked });
-  };
-
   const updatePartner = (partial) => {
     userDoc.update({ partner: { ...userDoc.data?.partner, ...partial } });
   };
@@ -1389,7 +1305,6 @@ function MainApp() {
       <div className="flex-1 overflow-y-auto">
         {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} income={userDoc.data?.income} incomeFrequency={userDoc.data?.incomeFrequency} onSetIncome={updateIncome} weeklySpent={userDoc.data?.weeklySpent} weeklySpentWeekKey={userDoc.data?.weeklySpentWeekKey} />}
         {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} onDeleteDebt={handleDeleteDebt} shared={isConnected && partner.sharing.debts} />}
-        {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
         {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
         {tab === "partner" && <PartnerScreen partner={partner} updatePartner={updatePartner} />}
