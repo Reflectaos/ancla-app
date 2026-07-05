@@ -557,9 +557,24 @@ function DebtRow({ debt, isTarget, onPay, onDelete }) {
         </div>
       ) : (
         <>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px]" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}% pagado</span>
+          </div>
           <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: palette.paperDim }}>
             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: liquidated ? palette.pine : `linear-gradient(90deg, ${palette.pineDeep}, ${palette.pine})` }} />
           </div>
+          {debt.payments && debt.payments.length > 0 && (
+            <div className="mb-3 rounded-lg p-2.5" style={{ background: palette.paper }}>
+              {[...debt.payments].reverse().map((p, i) => (
+                <div key={i} className="flex items-center justify-between py-0.5">
+                  <span className="text-[10px]" style={{ ...sans, color: palette.ash }}>
+                    {p.date ? new Date(p.date).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                  </span>
+                  <span className="text-[10px]" style={{ ...mono, color: palette.pineDeep }}>+${p.amount.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {!liquidated && (
             !open ? (
               <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Abonar</button>
@@ -1225,19 +1240,36 @@ function MainApp() {
         const userData = userSnap.data() || {};
 
         const newRemaining = currentData.remaining - amount;
+        const nowISO = new Date().toISOString();
+        const currentPayments = currentData.payments || [];
 
         if (newRemaining >= 0) {
-          transaction.update(currentRef, { remaining: newRemaining });
+          transaction.update(currentRef, {
+            remaining: newRemaining,
+            payments: [...currentPayments, { amount, date: nowISO }],
+          });
           if (newRemaining === 0) liquidatedName = currentData.name;
         } else {
           // Bola de nieve: esta deuda se liquida y el sobrante empuja a la
-          // siguiente, leída con el dato más reciente posible.
+          // siguiente, leída con el dato más reciente posible. El abono
+          // registrado en el historial de CADA deuda es lo que de verdad
+          // se le aplicó a esa deuda, no el monto total que tecleó el
+          // usuario — así el porcentaje y el historial cuadran siempre.
           const overflow = Math.abs(newRemaining);
-          transaction.update(currentRef, { remaining: 0 });
+          const appliedToCurrent = currentData.remaining;
+          transaction.update(currentRef, {
+            remaining: 0,
+            payments: [...currentPayments, { amount: appliedToCurrent, date: nowISO }],
+          });
           liquidatedName = currentData.name;
           if (nextSnap && nextSnap.exists()) {
             const nextData = nextSnap.data();
-            transaction.update(nextRef, { remaining: Math.max(0, nextData.remaining - overflow) });
+            const appliedToNext = Math.min(overflow, nextData.remaining);
+            const nextPayments = nextData.payments || [];
+            transaction.update(nextRef, {
+              remaining: Math.max(0, nextData.remaining - overflow),
+              payments: appliedToNext > 0 ? [...nextPayments, { amount: appliedToNext, date: nowISO }] : nextPayments,
+            });
           }
         }
 

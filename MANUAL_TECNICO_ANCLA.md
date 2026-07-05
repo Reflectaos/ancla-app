@@ -1,7 +1,7 @@
 # ESPECIFICACIÓN TÉCNICA — ANCLA
 ## Manual técnico para el equipo de desarrollo
 
-Versión: 2.0 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1330 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
+Versión: 2.1 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1370 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
 
 ---
 
@@ -101,6 +101,7 @@ Documento raíz por usuario.
 | `name` | string | Nombre del acreedor ("Tarjeta Azul", "Mi hermano") |
 | `original` | number | Monto original de la deuda |
 | `remaining` | number | Saldo restante — se actualiza con cada abono |
+| `payments` | array de `{ amount: number, date: string }` | **Nuevo.** Historial de abonos hechos a esta deuda. `date` es un ISO string generado en el cliente (`new Date().toISOString()`), no `serverTimestamp()` — los arrays de Firestore no soportan ese sentinel value dentro de sus elementos. Se muestra en el Radar de Deudas debajo de la barra de progreso, junto con el porcentaje pagado |
 | `createdAt` | timestamp | |
 
 **Cambio importante respecto a v1.0:** los campos `person` (booleano) y `talked` existían únicamente para el módulo de Conversaciones Pendientes, que fue retirado en esta versión (ver Changelog). Ya no se escriben en documentos nuevos. **Documentos creados antes de este cambio pueden conservar esos campos como datos huérfanos** — no se hizo una migración de limpieza retroactiva sobre Firestore; si se requiere, es un script de una sola vez (`FieldValue.delete()` sobre `person`/`talked` en cada documento existente).
@@ -109,7 +110,7 @@ Documento raíz por usuario.
 
 **Deudas liquidadas pueden borrarse:** cada `DebtRow` de una deuda con `remaining <= 0` muestra un ícono de eliminar con confirmación inline (`confirmDelete` local). Borra el documento por completo del historial — no es un archivado, es `deleteDoc` real vía `debtsHook.remove()`.
 
-**Nota de diseño sin cambios:** el orden de "bola de nieve" (menor a mayor `remaining`) se calcula en el cliente, no se almacena.
+**Nota de diseño sin cambios:** el orden de "bola de nieve" (menor a mayor `remaining`) se calcula en el cliente, no se almacena. **Nuevo:** cuando un abono liquida una deuda y el sobrante empuja a la siguiente, `handlePay()` registra el abono real aplicado en el historial (`payments`) de **ambas** deudas afectadas — no el monto total que tecleó el usuario, sino lo que de verdad se le aplicó a cada una. Todo dentro de la misma transacción atómica.
 
 ### 4.3 Subcolección `users/{uid}/goals/{goalId}`
 
@@ -298,7 +299,8 @@ Para el "por qué" detrás de cada uno de estos términos, ver `DOCUMENTO_MAESTR
 
 ## 17. Changelog
 
-- **v2.0** (esta versión):
+- **v2.1** (esta versión): cada `DebtRow` del Radar de Deudas ahora muestra el porcentaje pagado como texto y el historial de abonos (monto + fecha) dentro de la misma tarjeta. Nuevo campo `payments` en `debts`. La lógica de bola de nieve registra el abono real aplicado tanto en la deuda liquidada como en la siguiente que recibe el sobrante, dentro de la misma transacción atómica de `handlePay`.
+- **v2.0**:
   - **Retirado por completo el módulo de Conversaciones Pendientes** (`ConversationsScreen`, `ConversationCard`, `buildTemplate()`, y los campos `person`/`talked` en `debts` que solo existían para esto). Documentos de deudas creados antes de este cambio pueden conservar esos campos como datos huérfanos sin efecto en la UI.
   - **Bug real encontrado y corregido antes del retiro** (por si el patrón se repite en otra parte del código): el formulario de "Agregar deuda" introdujo un campo de texto libre llamado `person`, con un significado distinto al `person` booleano que ya usaba el resto del código (`true` = "involucra a una persona, no un banco"). Si se dejaba vacío, la deuda quedaba invisible para el filtro de Conversaciones sin ningún error visible — lección para el equipo: cuidado con reutilizar nombres de campo con semántica distinta entre formularios y el modelo de datos ya establecido.
   - Deudas liquidadas ahora se pueden eliminar del historial (con confirmación).
