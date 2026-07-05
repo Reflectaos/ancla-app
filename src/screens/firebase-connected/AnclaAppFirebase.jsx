@@ -29,6 +29,8 @@ import {
   MessageCircle,
   Copy,
   CheckCircle2,
+  Info,
+  Bell,
 } from "lucide-react";
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -130,6 +132,29 @@ function SharedBadge() {
     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4" style={{ background: palette.pineSoft }}>
       <Users size={11} color={palette.pineDeep} />
       <span className="text-[10px]" style={{ ...sans, color: palette.pineDeep }}>Compartido</span>
+    </div>
+  );
+}
+function AppFooter() {
+  return (
+    <div className="pt-5 mt-6" style={{ borderTop: `1px solid ${palette.paperLine}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Proyecto</p>
+          <p className="text-xs" style={{ ...serif, color: palette.paperText }}>ANCLA</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Versión</p>
+          <p className="text-xs" style={{ ...mono, color: palette.paperText }}>MVP v1.0</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Año</p>
+          <p className="text-xs" style={{ ...mono, color: palette.paperText }}>2026</p>
+        </div>
+      </div>
+      <p className="text-[10px] text-center leading-relaxed" style={{ ...sans, color: palette.ash }}>
+        Desarrollado con IA · © 2026 Carlos Sandoval
+      </p>
     </div>
   );
 }
@@ -559,10 +584,61 @@ function WeeklyReview({ onComplete, completed }) {
     </div>
   );
 }
-function AccountScreen() {
+function AboutScreen({ onBack }) {
+  return (
+    <div className="p-6">
+      <button onClick={onBack} className="flex items-center gap-2 mb-5" style={{ ...sans, color: palette.paperText }}>
+        <ArrowLeft size={16} /> <span className="text-sm">Acerca de</span>
+      </button>
+      <div className="rounded-2xl p-6 mb-4 flex flex-col items-center text-center" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: palette.dawn }}>
+          <span style={{ ...serif, color: palette.ink }} className="text-xl">CS</span>
+        </div>
+        <h3 className="text-lg mb-1" style={{ ...serif, color: palette.paperText }}>Carlos Sandoval</h3>
+        <p className="text-xs mb-4" style={{ ...sans, color: palette.ashPaper }}>Escritor · Autor de "Volver a Empezar"</p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Fundador de ANCLA</span>
+          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Autor publicado</span>
+          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Desarrollado con IA</span>
+        </div>
+      </div>
+      <div className="rounded-xl p-4 mb-4" style={{ background: palette.paper, border: `1px solid ${palette.dawn}`, borderLeftWidth: 3 }}>
+        <p className="text-sm italic leading-relaxed" style={{ ...serif, color: palette.paperText }}>
+          "Si con una sola frase puedo tocar un corazón y acercarlo más a Dios, entonces estoy cumpliendo mi llamado."
+        </p>
+      </div>
+      <div className="rounded-xl p-4 mb-4 flex items-center gap-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+        <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: palette.pineDeep }}>
+          <BookOpen size={18} color="#fff" />
+        </div>
+        <div>
+          <p className="text-sm" style={{ ...serif, color: palette.paperText }}>Volver a Empezar</p>
+          <p className="text-xs mb-1.5 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>Cómo salir de las deudas, recuperar tu propósito y convertirte en la persona que tu familia necesita.</p>
+          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ ...sans, background: palette.paperDim, color: palette.ashPaper }}>Libro publicado · PDF digital</span>
+        </div>
+      </div>
+      <div className="rounded-xl p-4 mb-4" style={{ background: palette.pineSoft }}>
+        <p className="text-[10px] tracking-widest uppercase mb-2 flex items-center gap-1.5" style={{ ...sans, color: palette.pineDeep }}>
+          <Info size={12} /> Sobre ANCLA
+        </p>
+        <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.pineDeep }}>
+          ANCLA es la primera herramienta construida a partir de "Volver a Empezar" — un sistema pensado para el momento antes de estar listo para organizarte: la evitación, la vergüenza, el no querer ver el estado de cuenta.
+        </p>
+      </div>
+      <AppFooter />
+    </div>
+  );
+}
+function AccountScreen({ userDoc }) {
   const { currentUser, logout } = useAuth();
+  const [showAbout, setShowAbout] = useState(false);
   const displayName = currentUser?.displayName || "Tú";
   const initial = displayName.charAt(0).toUpperCase();
+  const reminderOn = !!userDoc?.data?.dailyReminderEnabled;
+  const toggleReminder = () => userDoc?.update({ dailyReminderEnabled: !reminderOn });
+
+  if (showAbout) return <AboutScreen onBack={() => setShowAbout(false)} />;
+
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Cuenta</p>
@@ -581,7 +657,19 @@ function AccountScreen() {
           <ShieldCheck size={13} /> Tus datos ya están guardados en tu cuenta — persisten entre dispositivos.
         </p>
       </div>
+      <SharingToggle
+        label="Recordatorio diario"
+        description="Un aviso suave cada día para volver a tu Panel de Verdad. Nunca es una alarma."
+        checked={reminderOn}
+        onChange={toggleReminder}
+      />
+      <button onClick={() => setShowAbout(true)} className="w-full rounded-xl p-4 mb-6 flex items-center justify-between text-left transition-all duration-200"
+        style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+        <span className="text-sm flex items-center gap-2" style={{ ...sans, color: palette.paperText }}><Info size={15} color={palette.ash} /> Acerca de</span>
+        <ArrowRight size={15} color={palette.ash} />
+      </button>
       <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}><LogOut size={14} /> Cerrar sesión</GhostButton>
+      <AppFooter />
     </div>
   );
 }
@@ -589,16 +677,25 @@ function AddGoalForm({ onAdd, onCancel }) {
   const [person, setPerson] = useState("");
   const [why, setWhy] = useState("");
   const [target, setTarget] = useState("");
-  const submit = async () => { if (!person || !target) return; await onAdd({ person, why, target: parseFloat(target) || 0, saved: 0 }); };
+  const [targetDate, setTargetDate] = useState("");
+  const submit = async () => { if (!person || !target) return; await onAdd({ person, why, target: parseFloat(target) || 0, saved: 0, targetDate: targetDate || null }); };
   return (
     <PaperCard>
       <h3 className="text-lg mb-4" style={{ ...serif, color: palette.paperText }}>¿Para quién es esta meta?</h3>
       <input autoFocus value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Ej: Mis hijos..."
         className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <div className="flex items-center gap-2 mb-5">
+      <div className="flex items-center gap-2 mb-4">
         <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
         <input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Monto meta"
           className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      </div>
+      <div className="mb-5">
+        <p className="text-xs mb-1.5" style={{ ...sans, color: palette.ashPaper }}>¿Para cuándo? (opcional)</p>
+        <div className="flex items-center gap-2 px-4 py-3 rounded-lg" style={{ background: "#FFFFFF", border: `1px solid ${palette.paperLine}` }}>
+          <Calendar size={15} color={palette.ash} />
+          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
+            className="flex-1 outline-none bg-transparent text-sm" style={{ ...sans, color: palette.paperText }} />
+        </div>
       </div>
       <div className="flex gap-3">
         <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
@@ -620,6 +717,11 @@ function GoalCard({ goal, index, onContribute }) {
         <div className="flex-1">
           <p className="text-base" style={{ ...serif, color: palette.paperText }}>{goal.person}</p>
           {goal.why && <p className="text-xs mt-0.5" style={{ ...sans, color: palette.ashPaper }}>{goal.why}</p>}
+          {goal.targetDate && !complete && (
+            <p className="text-[10px] mt-1 flex items-center gap-1" style={{ ...sans, color: palette.ash }}>
+              <Calendar size={10} /> Para el {new Date(goal.targetDate + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
+            </p>
+          )}
         </div>
         {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
       </div>
@@ -1050,7 +1152,7 @@ function MainApp() {
         {tab === "partner" && <PartnerScreen partner={partner} updatePartner={updatePartner} />}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}
-        {tab === "account" && <AccountScreen />}
+        {tab === "account" && <AccountScreen userDoc={userDoc} />}
       </div>
       <BottomNav tab={tab} setTab={setTab} />
       {celebrate && <CelebrationModal debtName={celebrate} onClose={() => setCelebrate(null)} />}
