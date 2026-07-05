@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Info,
   Bell,
+  Pencil,
 } from "lucide-react";
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -490,7 +491,37 @@ function DebtRow({ debt, isTarget, onPay }) {
     </div>
   );
 }
-function DebtRadar({ debts, onPay, shared }) {
+function AddDebtForm({ onAdd, onCancel }) {
+  const [name, setName] = useState("");
+  const [person, setPerson] = useState("");
+  const [original, setOriginal] = useState("");
+  const submit = async () => {
+    if (!name || !original) return;
+    const amount = parseFloat(original) || 0;
+    await onAdd({ name, person, original: amount, remaining: amount, talked: false });
+  };
+  return (
+    <PaperCard>
+      <h3 className="text-lg mb-1" style={{ ...serif, color: palette.paperText }}>Cuando estés listo, aquí queda.</h3>
+      <p className="text-xs mb-4 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>No pasa nada si esta no estaba en tu inventario original.</p>
+      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Tarjeta de crédito, préstamo de mi hermano..."
+        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      <input value={person} onChange={(e) => setPerson(e.target.value)} placeholder="¿A quién le debes? (opcional)"
+        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      <div className="flex items-center gap-2 mb-5">
+        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
+        <input type="number" value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Monto total"
+          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      </div>
+      <div className="flex gap-3">
+        <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
+        <PrimaryButton onClick={submit} disabled={!name || !original} style={{ flex: 1 }}>Agregar deuda <Check size={16} /></PrimaryButton>
+      </div>
+    </PaperCard>
+  );
+}
+function DebtRadar({ debts, onPay, onAddDebt, shared }) {
+  const [showForm, setShowForm] = useState(false);
   const active = [...debts].filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining);
   const done = debts.filter((d) => d.remaining <= 0);
   const targetId = active[0]?.id;
@@ -511,6 +542,16 @@ function DebtRadar({ debts, onPay, shared }) {
           {done.map((d) => <DebtRow key={d.id} debt={d} isTarget={false} onPay={onPay} />)}
         </>
       )}
+      <div className="mt-6">
+        {showForm ? (
+          <AddDebtForm onAdd={async (d) => { await onAddDebt(d); setShowForm(false); }} onCancel={() => setShowForm(false)} />
+        ) : (
+          <button onClick={() => setShowForm(true)} className="w-full rounded-xl p-4 flex items-center justify-center gap-2 text-sm transition-all duration-200"
+            style={{ ...sans, border: `1px dashed ${palette.paperLine}`, color: palette.pine }}>
+            <Plus size={16} /> Agregar una deuda
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -537,9 +578,15 @@ function DiaryScreen({ entries, onAddEntry }) {
         <div className="mt-8">
           {[...entries].reverse().map((e) => {
             const m = moods.find((mm) => mm.key === e.mood);
+            const entryDate = e.createdAt?.toDate ? e.createdAt.toDate() : null;
             return (
               <div key={e.id} className="rounded-xl p-4 mb-2" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-                <span className="text-xs px-2 py-1 rounded-full" style={{ ...sans, background: m?.color, color: "#fff" }}>{m?.label}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs px-2 py-1 rounded-full" style={{ ...sans, background: m?.color, color: "#fff" }}>{m?.label}</span>
+                  <span className="text-[10px]" style={{ ...mono, color: palette.ash }}>
+                    {entryDate ? entryDate.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "Justo ahora"}
+                  </span>
+                </div>
                 {e.text && <p className="text-sm mt-2" style={{ ...sans, color: palette.paperText }}>{e.text}</p>}
               </div>
             );
@@ -584,12 +631,11 @@ function WeeklyReview({ onComplete, completed }) {
     </div>
   );
 }
-function AboutScreen({ onBack }) {
+function AboutScreen() {
   return (
     <div className="p-6">
-      <button onClick={onBack} className="flex items-center gap-2 mb-5" style={{ ...sans, color: palette.paperText }}>
-        <ArrowLeft size={16} /> <span className="text-sm">Acerca de</span>
-      </button>
+      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Acerca de</p>
+      <h2 className="text-2xl mb-6" style={{ ...serif, color: palette.paperText }}>Quién está detrás de ANCLA.</h2>
       <div className="rounded-2xl p-6 mb-4 flex flex-col items-center text-center" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
         <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: palette.dawn }}>
           <span style={{ ...serif, color: palette.ink }} className="text-xl">CS</span>
@@ -631,13 +677,10 @@ function AboutScreen({ onBack }) {
 }
 function AccountScreen({ userDoc }) {
   const { currentUser, logout } = useAuth();
-  const [showAbout, setShowAbout] = useState(false);
   const displayName = currentUser?.displayName || "Tú";
   const initial = displayName.charAt(0).toUpperCase();
   const reminderOn = !!userDoc?.data?.dailyReminderEnabled;
   const toggleReminder = () => userDoc?.update({ dailyReminderEnabled: !reminderOn });
-
-  if (showAbout) return <AboutScreen onBack={() => setShowAbout(false)} />;
 
   return (
     <div className="p-6">
@@ -663,13 +706,7 @@ function AccountScreen({ userDoc }) {
         checked={reminderOn}
         onChange={toggleReminder}
       />
-      <button onClick={() => setShowAbout(true)} className="w-full rounded-xl p-4 mb-6 flex items-center justify-between text-left transition-all duration-200"
-        style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-        <span className="text-sm flex items-center gap-2" style={{ ...sans, color: palette.paperText }}><Info size={15} color={palette.ash} /> Acerca de</span>
-        <ArrowRight size={15} color={palette.ash} />
-      </button>
       <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}><LogOut size={14} /> Cerrar sesión</GhostButton>
-      <AppFooter />
     </div>
   );
 }
@@ -704,12 +741,54 @@ function AddGoalForm({ onAdd, onCancel }) {
     </PaperCard>
   );
 }
-function GoalCard({ goal, index, onContribute }) {
+function EditGoalForm({ goal, onSave, onCancel }) {
+  const [person, setPerson] = useState(goal.person);
+  const [why, setWhy] = useState(goal.why || "");
+  const [target, setTarget] = useState(String(goal.target));
+  const [targetDate, setTargetDate] = useState(goal.targetDate || "");
+  const submit = () => { if (!person || !target) return; onSave({ person, why, target: parseFloat(target) || 0, targetDate: targetDate || null }); };
+  return (
+    <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+      <input autoFocus value={person} onChange={(e) => setPerson(e.target.value)} placeholder="¿Para quién?"
+        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="¿Por qué? (opcional)"
+        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      <div className="flex items-center gap-2 mb-3">
+        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
+        <input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Monto meta"
+          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      </div>
+      <div className="flex items-center gap-2 px-4 py-3 rounded-lg mb-4" style={{ background: "#FFFFFF", border: `1px solid ${palette.paperLine}` }}>
+        <Calendar size={15} color={palette.ash} />
+        <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
+          className="flex-1 outline-none bg-transparent text-sm" style={{ ...sans, color: palette.paperText }} />
+      </div>
+      <div className="flex gap-3">
+        <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
+        <PrimaryButton onClick={submit} disabled={!person || !target} style={{ flex: 1 }}>Guardar cambios <Check size={16} /></PrimaryButton>
+      </div>
+    </div>
+  );
+}
+function GoalCard({ goal, index, onContribute, onUpdateGoal, onDeleteGoal }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const pct = Math.min(100, (goal.saved / goal.target) * 100);
   const color = goalColors[index % goalColors.length];
   const complete = goal.saved >= goal.target;
+
+  if (editing) {
+    return (
+      <EditGoalForm
+        goal={goal}
+        onCancel={() => setEditing(false)}
+        onSave={async (updates) => { await onUpdateGoal(goal.id, updates); setEditing(false); }}
+      />
+    );
+  }
+
   return (
     <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
       <div className="flex items-start gap-3 mb-3">
@@ -723,39 +802,56 @@ function GoalCard({ goal, index, onContribute }) {
             </p>
           )}
         </div>
-        {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
+          <button onClick={() => setEditing(true)} aria-label="Editar meta"><Pencil size={14} color={palette.ash} /></button>
+          <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar meta"><Trash2 size={14} color={palette.ash} /></button>
+        </div>
       </div>
-      <div className="w-full h-2 rounded-full overflow-hidden mb-2" style={{ background: palette.paperDim }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs" style={{ ...mono, color: palette.ashPaper }}>${goal.saved.toLocaleString()} de ${goal.target.toLocaleString()}</span>
-        <span className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}%</span>
-      </div>
-      {!complete && (
-        !open ? (
-          <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Aportar</button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
-            <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-            <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onContribute(goal, val); setAmount(""); setOpen(false); }}
-              className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
+
+      {confirmDelete ? (
+        <div className="rounded-lg p-3 mb-1" style={{ background: palette.paper, border: `1px solid ${palette.errorText}` }}>
+          <p className="text-xs mb-3" style={{ ...sans, color: palette.paperText }}>¿Eliminar esta meta? No se puede deshacer.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirmDelete(false)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText }}>Cancelar</button>
+            <button onClick={() => onDeleteGoal(goal.id)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, background: palette.errorText, color: "#fff" }}>Eliminar</button>
           </div>
-        )
+        </div>
+      ) : (
+        <>
+          <div className="w-full h-2 rounded-full overflow-hidden mb-2" style={{ background: palette.paperDim }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+          </div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs" style={{ ...mono, color: palette.ashPaper }}>${goal.saved.toLocaleString()} de ${goal.target.toLocaleString()}</span>
+            <span className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}%</span>
+          </div>
+          {!complete && (
+            !open ? (
+              <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Aportar</button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
+                <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+                <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onContribute(goal, val); setAmount(""); setOpen(false); }}
+                  className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
+              </div>
+            )
+          )}
+        </>
       )}
     </div>
   );
 }
-function PurposeScreen({ goals, onAddGoal, onContribute, shared }) {
+function PurposeScreen({ goals, onAddGoal, onContribute, onUpdateGoal, onDeleteGoal, shared }) {
   const [showForm, setShowForm] = useState(false);
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Propósito</p>
       <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>¿Para quién estás haciendo esto?</h2>
       {shared && <SharedBadge />}
-      {goals.map((g, i) => <GoalCard key={g.id} goal={g} index={i} onContribute={onContribute} />)}
+      {goals.map((g, i) => <GoalCard key={g.id} goal={g} index={i} onContribute={onContribute} onUpdateGoal={onUpdateGoal} onDeleteGoal={onDeleteGoal} />)}
       {showForm ? (
         <AddGoalForm onAdd={async (g) => { await onAddGoal(g); setShowForm(false); }} onCancel={() => setShowForm(false)} />
       ) : (
@@ -987,6 +1083,7 @@ function BottomNav({ tab, setTab }) {
     { key: "partner", label: "Pareja", icon: Users },
     { key: "diary", label: "Diario", icon: BookOpen },
     { key: "review", label: "Revisión", icon: Calendar },
+    { key: "about", label: "Acerca de", icon: Info },
     { key: "account", label: "Cuenta", icon: User },
   ];
   return (
@@ -1145,13 +1242,14 @@ function MainApp() {
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex flex-col relative" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)", background: palette.paper }}>
       <div className="flex-1 overflow-y-auto">
         {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} />}
-        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} shared={isConnected && partner.sharing.debts} />}
+        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} shared={isConnected && partner.sharing.debts} />}
         {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
-        {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} shared={isConnected && partner.sharing.purpose} />}
+        {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
         {tab === "partner" && <PartnerScreen partner={partner} updatePartner={updatePartner} />}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}
+        {tab === "about" && <AboutScreen />}
         {tab === "account" && <AccountScreen userDoc={userDoc} />}
       </div>
       <BottomNav tab={tab} setTab={setTab} />
