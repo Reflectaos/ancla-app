@@ -32,6 +32,7 @@ import {
   Info,
   Bell,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react";
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -83,6 +84,7 @@ const moods = [
   { key: "orgullo", label: "Orgullo tranquilo", color: "#C9973F" },
 ];
 const goalColors = ["#2F6F63", "#C9973F", "#7C7FA6", "#9E6B6B", "#5E9C8B"];
+const MORE_KEYS = ["conversations", "health", "partner", "about"];
 
 // --- Piezas reutilizables ----------------------------------------------------
 function GhostButton({ children, onClick, style }) {
@@ -501,12 +503,12 @@ function DebtRow({ debt, isTarget, onPay }) {
 }
 function AddDebtForm({ onAdd, onCancel }) {
   const [name, setName] = useState("");
-  const [person, setPerson] = useState("");
+  const [isPerson, setIsPerson] = useState(false);
   const [original, setOriginal] = useState("");
   const submit = async () => {
     if (!name || !original) return;
     const amount = parseFloat(original) || 0;
-    await onAdd({ name, person, original: amount, remaining: amount, talked: false });
+    await onAdd({ name, person: isPerson, original: amount, remaining: amount, talked: false });
   };
   return (
     <PaperCard>
@@ -514,8 +516,13 @@ function AddDebtForm({ onAdd, onCancel }) {
       <p className="text-xs mb-4 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>No pasa nada si esta no estaba en tu inventario original.</p>
       <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Tarjeta de crédito, préstamo de mi hermano..."
         className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <input value={person} onChange={(e) => setPerson(e.target.value)} placeholder="¿A quién le debes? (opcional)"
-        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+      <button onClick={() => setIsPerson(!isPerson)} className="w-full rounded-lg p-3 mb-5 text-left flex items-center justify-between gap-3 transition-all duration-200"
+        style={{ background: "#FFFFFF", border: `1px solid ${isPerson ? palette.pine : palette.paperLine}`, borderWidth: isPerson ? 2 : 1 }}>
+        <span className="text-xs leading-relaxed" style={{ ...sans, color: palette.paperText }}>Es una deuda con una persona, no con un banco</span>
+        <div className="w-9 h-5 rounded-full flex-shrink-0 relative transition-all duration-200" style={{ background: isPerson ? palette.pine : palette.paperDim }}>
+          <div className="w-3.5 h-3.5 rounded-full absolute top-[3px] transition-all duration-200" style={{ background: "#fff", left: isPerson ? 18 : 3 }} />
+        </div>
+      </button>
       <div className="flex items-center gap-2 mb-5">
         <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
         <input type="number" value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Monto total"
@@ -676,7 +683,7 @@ function AboutScreen() {
           <Info size={12} /> Sobre ANCLA
         </p>
         <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.pineDeep }}>
-          ANCLA es la primera herramienta construida a partir de "Volver a Empezar" — un sistema pensado para el momento antes de estar listo para organizarte: la evitación, la vergüenza, el no querer ver el estado de cuenta.
+          ANCLA — Acepta, Nombra, Comprende, Libérate, Avanza. La app que te acompaña a dejar de huir de tus deudas y empezar de nuevo, con honestidad, construida a partir de "Volver a Empezar" — un sistema pensado para el momento antes de estar listo para organizarte: la evitación, la vergüenza, el no querer ver el estado de cuenta.
         </p>
       </div>
       <AppFooter />
@@ -1081,19 +1088,47 @@ function ConversationsScreen({ debts, onToggleTalked }) {
 // =============================================================================
 // NAVEGACIÓN INFERIOR
 // =============================================================================
-function BottomNav({ tab, setTab }) {
+function MoreMenu({ onSelect, onClose }) {
+  const items = [
+    { key: "conversations", label: "Conversaciones", icon: MessageCircle, desc: "Deudas con personas, no bancos." },
+    { key: "health", label: "Salud financiera", icon: Activity, desc: "Tu score propio: claridad, constancia, progreso." },
+    { key: "partner", label: "Pareja", icon: Users, desc: "Modo compartido con quien tú decidas." },
+    { key: "about", label: "Acerca de", icon: Info, desc: "Sobre ANCLA y el libro que le dio origen." },
+  ];
+  return (
+    <>
+      <div className="absolute inset-0 z-40" style={{ background: "rgba(20,23,31,0.45)" }} onClick={onClose} />
+      <div className="absolute bottom-0 inset-x-0 z-50 rounded-t-2xl p-3 pb-5" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
+        <div className="w-10 h-1 rounded-full mx-auto mb-3" style={{ background: palette.paperLine }} />
+        {items.map((it) => {
+          const Icon = it.icon;
+          return (
+            <button key={it.key} onClick={() => onSelect(it.key)}
+              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 hover:opacity-80">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.pineSoft }}>
+                <Icon size={16} color={palette.pineDeep} />
+              </div>
+              <div>
+                <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{it.label}</p>
+                <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{it.desc}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+function BottomNav({ tab, setTab, onOpenMore }) {
   const items = [
     { key: "home", label: "Inicio", icon: Home },
     { key: "radar", label: "Deudas", icon: Compass },
-    { key: "conversations", label: "Conversa", icon: MessageCircle },
     { key: "purpose", label: "Propósito", icon: Heart },
-    { key: "health", label: "Salud", icon: Activity },
-    { key: "partner", label: "Pareja", icon: Users },
     { key: "diary", label: "Diario", icon: BookOpen },
     { key: "review", label: "Revisión", icon: Calendar },
-    { key: "about", label: "Acerca de", icon: Info },
     { key: "account", label: "Cuenta", icon: User },
   ];
+  const moreActive = MORE_KEYS.includes(tab);
   return (
     <div className="flex items-center gap-1 py-3 px-2 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
       {items.map((it) => {
@@ -1106,6 +1141,10 @@ function BottomNav({ tab, setTab }) {
           </button>
         );
       })}
+      <button onClick={onOpenMore} className="flex flex-col items-center gap-1 px-2 py-1 flex-shrink-0">
+        <MoreHorizontal size={15} color={moreActive ? palette.pine : palette.ash} />
+        <span className="text-[7.5px] whitespace-nowrap" style={{ ...sans, color: moreActive ? palette.pine : palette.ash }}>Más</span>
+      </button>
     </div>
   );
 }
@@ -1122,6 +1161,7 @@ function MainApp() {
 
   const [onboardPhase, setOnboardPhase] = useState("checking");
   const [tab, setTab] = useState("home");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [localDebts, setLocalDebts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [celebrate, setCelebrate] = useState(null);
@@ -1260,7 +1300,8 @@ function MainApp() {
         {tab === "about" && <AboutScreen />}
         {tab === "account" && <AccountScreen userDoc={userDoc} />}
       </div>
-      <BottomNav tab={tab} setTab={setTab} />
+      <BottomNav tab={tab} setTab={setTab} onOpenMore={() => setMoreOpen(true)} />
+      {moreOpen && <MoreMenu onSelect={(key) => { setTab(key); setMoreOpen(false); }} onClose={() => setMoreOpen(false)} />}
       {celebrate && <CelebrationModal debtName={celebrate} onClose={() => setCelebrate(null)} />}
     </div>
   );
