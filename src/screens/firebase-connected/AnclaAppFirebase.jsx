@@ -29,12 +29,19 @@ import {
   MessageCircle,
   Copy,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import { doc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { useUserCollection } from "../../hooks/useUserCollection";
 import { useUserDoc } from "../../hooks/useUserDoc";
+import {
+  PRIVACY_POLICY_TITLE,
+  PRIVACY_POLICY_SECTIONS,
+  TERMS_OF_SERVICE_TITLE,
+  TERMS_OF_SERVICE_SECTIONS,
+} from "../../legal/legalContent";
 
 // ---------------------------------------------------------------------------
 // ANCLA — versión conectada a Firebase.
@@ -234,20 +241,81 @@ function ForgotPasswordScreen({ onGoLogin }) {
     </div>
   );
 }
+function LegalCheckbox({ checked, onChange, onOpenPrivacy, onOpenTerms }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className="w-full flex items-start gap-3 text-left mb-5"
+      style={{ background: "transparent" }}
+    >
+      <div
+        className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all duration-150"
+        style={{ border: `1px solid ${checked ? palette.pine : palette.ash}`, background: checked ? palette.pine : "transparent" }}
+      >
+        {checked && <Check size={13} color="#fff" />}
+      </div>
+      <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.ash }}>
+        Acepto el{" "}
+        <span onClick={(e) => { e.stopPropagation(); onOpenPrivacy(); }} className="underline" style={{ color: palette.dawnSoft }}>
+          Aviso de Privacidad
+        </span>{" "}
+        y los{" "}
+        <span onClick={(e) => { e.stopPropagation(); onOpenTerms(); }} className="underline" style={{ color: palette.dawnSoft }}>
+          Términos de Servicio
+        </span>{" "}
+        de Ancla.
+      </p>
+    </button>
+  );
+}
+
+function LegalModal({ title, sections, onClose }) {
+  return (
+    <div className="absolute inset-0 flex items-end sm:items-center justify-center z-50" style={{ background: "rgba(20,23,31,0.8)" }}>
+      <div
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl flex flex-col"
+        style={{ background: palette.paper, maxHeight: "88%" }}
+      >
+        <div className="flex items-center justify-between p-5 pb-3" style={{ borderBottom: `1px solid ${palette.paperLine}` }}>
+          <h3 className="text-lg" style={{ ...serif, color: palette.paperText }}>{title}</h3>
+          <button onClick={onClose}><X size={18} color={palette.ashPaper} /></button>
+        </div>
+        <div className="overflow-y-auto p-5 pt-3">
+          <p className="text-xs mb-4 p-3 rounded-lg" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep, lineHeight: 1.5 }}>
+            Documento en revisión legal. Algunos datos de contacto y domicilio están pendientes de completarse antes
+            del lanzamiento público.
+          </p>
+          {sections.map((s, i) => (
+            <div key={i} className="mb-4">
+              <p className="text-sm mb-1.5" style={{ ...sans, color: palette.paperText, fontWeight: 600 }}>{s.heading}</p>
+              <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SignupScreen({ onGoLogin }) {
   const { signup, authError, setAuthError } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState(null); // "privacy" | "terms" | null
+
   const submit = async () => {
     if (!name || !email || !password) return setAuthError("Completa todos los campos.");
+    if (!legalAccepted) return setAuthError("Necesitas aceptar el Aviso de Privacidad y los Términos de Servicio para continuar.");
     setBusy(true);
     await signup(name, email, password);
     setBusy(false);
   };
   return (
-    <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
+    <div className="min-h-full flex flex-col justify-center p-8 relative" style={{ background: palette.ink }}>
       <div className="max-w-md mx-auto w-full">
         <div className="flex items-center gap-2 mb-8">
           <Moon size={16} color={palette.ash} />
@@ -259,8 +327,14 @@ function SignupScreen({ onGoLogin }) {
         <TextField icon={User} value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" dark />
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
         <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mínimo 6 caracteres)" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
+        <LegalCheckbox
+          checked={legalAccepted}
+          onChange={() => setLegalAccepted(!legalAccepted)}
+          onOpenPrivacy={() => setLegalModal("privacy")}
+          onOpenTerms={() => setLegalModal("terms")}
+        />
         {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
-        <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%", marginBottom: 16 }}>
+        <PrimaryButton onClick={submit} disabled={busy || !legalAccepted} style={{ width: "100%", marginBottom: 16 }}>
           {busy ? "Creando..." : "Crear mi cuenta"} {!busy && <ArrowRight size={16} />}
         </PrimaryButton>
         <div className="flex items-center justify-center gap-1 mt-4">
@@ -268,6 +342,12 @@ function SignupScreen({ onGoLogin }) {
           <button onClick={onGoLogin} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>Inicia sesión</button>
         </div>
       </div>
+      {legalModal === "privacy" && (
+        <LegalModal title={PRIVACY_POLICY_TITLE} sections={PRIVACY_POLICY_SECTIONS} onClose={() => setLegalModal(null)} />
+      )}
+      {legalModal === "terms" && (
+        <LegalModal title={TERMS_OF_SERVICE_TITLE} sections={TERMS_OF_SERVICE_SECTIONS} onClose={() => setLegalModal(null)} />
+      )}
     </div>
   );
 }
@@ -674,6 +754,7 @@ function AccountScreen() {
   const initial = displayName.charAt(0).toUpperCase();
   const [resent, setResent] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [legalModal, setLegalModal] = useState(null);
 
   const handleResend = async () => {
     const ok = await resendVerification();
@@ -716,12 +797,29 @@ function AccountScreen() {
         </div>
       )}
 
-      <div className="rounded-xl p-4 mb-6" style={{ background: palette.pineSoft }}>
+      <div className="rounded-xl p-4 mb-4" style={{ background: palette.pineSoft }}>
         <p className="text-xs leading-relaxed flex items-center gap-1.5" style={{ ...sans, color: palette.pineDeep }}>
           <ShieldCheck size={13} /> Tus datos ya están guardados en tu cuenta — persisten entre dispositivos.
         </p>
       </div>
+
+      <div className="flex gap-2 mb-6">
+        <GhostButton onClick={() => setLegalModal("privacy")} style={{ flex: 1, padding: "10px", fontSize: 12 }}>
+          Aviso de Privacidad
+        </GhostButton>
+        <GhostButton onClick={() => setLegalModal("terms")} style={{ flex: 1, padding: "10px", fontSize: 12 }}>
+          Términos de Servicio
+        </GhostButton>
+      </div>
+
       <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}><LogOut size={14} /> Cerrar sesión</GhostButton>
+
+      {legalModal === "privacy" && (
+        <LegalModal title={PRIVACY_POLICY_TITLE} sections={PRIVACY_POLICY_SECTIONS} onClose={() => setLegalModal(null)} />
+      )}
+      {legalModal === "terms" && (
+        <LegalModal title={TERMS_OF_SERVICE_TITLE} sections={TERMS_OF_SERVICE_SECTIONS} onClose={() => setLegalModal(null)} />
+      )}
     </div>
   );
 }

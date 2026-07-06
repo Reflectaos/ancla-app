@@ -10,6 +10,7 @@ import {
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { LEGAL_VERSION } from "../legal/legalContent";
 
 // ---------------------------------------------------------------------------
 // Este archivo reemplaza al mock de autenticación de los prototipos
@@ -83,6 +84,12 @@ export function AuthProvider({ children }) {
         name: name.trim() || "Tú",
         email: email.trim().toLowerCase(),
         createdAt: serverTimestamp(),
+        // Evidencia de consentimiento: el checkbox de Aviso de Privacidad y
+        // Términos de Servicio es obligatorio en el registro (SignupScreen),
+        // así que si llegamos aquí, ya se aceptó. Se guarda versión y fecha
+        // por si el documento legal cambia más adelante.
+        legalAcceptedVersion: LEGAL_VERSION,
+        legalAcceptedAt: serverTimestamp(),
       });
       // Correo de verificación — no bloquea el registro, solo se envía.
       // La app decide más adelante (VerifyEmailScreen) si lo recuerda o no.
