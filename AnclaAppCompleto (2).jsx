@@ -21,27 +21,18 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Heart,
-  Plus,
-  Users,
-  Clock,
-  ShieldCheck,
-  X,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// ANCLA — Modo Compartido con pareja
+// ANCLA — Prototipo con Login / Registro
 //
-// Respaldo en el libro: el Principio 2 dedica su parte central al costo
-// relacional de mantener las deudas en secreto ("el secreto no me protegió
-// a mí, nos aisló a los dos"). Pero el libro también describe con cuidado
-// la diferencia entre honestidad y exposición forzada. Por eso este modo
-// es explícitamente OPCIONAL y GRANULAR: cada persona decide qué comparte
-// y cuándo, en vez de forzar transparencia total desde el día uno.
-//
-// El Diario Financiero (el espacio más emocional/vulnerable) viene
-// desactivado por defecto en el compartido — se puede activar, pero no es
-// la opción inicial, a propósito.
+// IMPORTANTE — esto es solo la pantalla y el flujo de UX del login.
+// No hay backend todavía: "authService" de abajo es un mock en memoria
+// (se reinicia si recargas la página). Está escrito como una capa aislada
+// a propósito: cuando conectes Firebase Auth, solo tienes que reemplazar
+// las 4 funciones de mockAuthService (login, signup, logout, currentUser)
+// por las llamadas equivalentes de firebase/auth — el resto de la app
+// (pantallas, navegación, estado) no cambia.
 // ---------------------------------------------------------------------------
 
 const palette = {
@@ -82,39 +73,60 @@ const moods = [
   { key: "orgullo", label: "Orgullo tranquilo", color: "#C9973F" },
 ];
 
-const goalColors = ["#2F6F63", "#C9973F", "#7C7FA6", "#9E6B6B", "#5E9C8B"];
-const seedGoals = [{ id: 1, person: "Mis hijos", why: "Que me vean levantarme, no solo caer.", target: 20000, saved: 6500 }];
-
 // =============================================================================
-// AUTENTICACIÓN (mock)
+// CAPA DE AUTENTICACIÓN — mock por ahora, reemplazable por Firebase después
 // =============================================================================
 const AuthContext = createContext(null);
-function useAuth() { return useContext(AuthContext); }
+function useAuth() {
+  return useContext(AuthContext);
+}
+
+// Simula un pequeño directorio de "usuarios ya registrados" para poder
+// probar el login sin pasar siempre por el registro.
 const seedUsers = [{ email: "demo@ancla.app", password: "ancla123", name: "Carlos" }];
 
 function AuthProvider({ children }) {
   const [users, setUsers] = useState(seedUsers);
   const [currentUser, setCurrentUser] = useState(null);
   const [authError, setAuthError] = useState("");
+
+  // --- Reemplazar por: signInWithEmailAndPassword(auth, email, password) ---
   const login = (email, password) => {
     setAuthError("");
     const found = users.find((u) => u.email === email.trim().toLowerCase());
-    if (!found) return setAuthError("No encontramos una cuenta con ese correo."), false;
-    if (found.password !== password) return setAuthError("La contraseña no coincide."), false;
+    if (!found) {
+      setAuthError("No encontramos una cuenta con ese correo.");
+      return false;
+    }
+    if (found.password !== password) {
+      setAuthError("La contraseña no coincide.");
+      return false;
+    }
     setCurrentUser({ email: found.email, name: found.name });
     return true;
   };
+
+  // --- Reemplazar por: createUserWithEmailAndPassword(auth, email, password) ---
   const signup = (name, email, password) => {
     setAuthError("");
     const cleanEmail = email.trim().toLowerCase();
-    if (users.some((u) => u.email === cleanEmail)) return setAuthError("Ya existe una cuenta con ese correo."), false;
-    if (password.length < 6) return setAuthError("La contraseña necesita al menos 6 caracteres."), false;
+    if (users.some((u) => u.email === cleanEmail)) {
+      setAuthError("Ya existe una cuenta con ese correo.");
+      return false;
+    }
+    if (password.length < 6) {
+      setAuthError("La contraseña necesita al menos 6 caracteres.");
+      return false;
+    }
     const newUser = { email: cleanEmail, password, name: name.trim() || "Tú" };
     setUsers([...users, newUser]);
     setCurrentUser({ email: newUser.email, name: newUser.name });
     return true;
   };
+
+  // --- Reemplazar por: signOut(auth) ---
   const logout = () => setCurrentUser(null);
+
   return (
     <AuthContext.Provider value={{ currentUser, login, signup, logout, authError, setAuthError }}>
       {children}
@@ -125,20 +137,36 @@ function AuthProvider({ children }) {
 // --- Piezas reutilizables ----------------------------------------------------
 function GhostButton({ children, onClick, style }) {
   return (
-    <button onClick={onClick} className="px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:opacity-80 flex items-center gap-2 justify-center"
-      style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText, background: "transparent", ...style }}>
+    <button
+      onClick={onClick}
+      className="px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:opacity-80 flex items-center gap-2 justify-center"
+      style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText, background: "transparent", ...style }}
+    >
       {children}
     </button>
   );
 }
+
 function PrimaryButton({ children, onClick, disabled, style }) {
   return (
-    <button onClick={onClick} disabled={disabled} className="px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all duration-200"
-      style={{ ...sans, background: disabled ? palette.ash : palette.pine, color: "#FFFFFF", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer", ...style }}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all duration-200"
+      style={{
+        ...sans,
+        background: disabled ? palette.ash : palette.pine,
+        color: "#FFFFFF",
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? "not-allowed" : "pointer",
+        ...style,
+      }}
+    >
       {children}
     </button>
   );
 }
+
 function ProgressArc({ pct }) {
   return (
     <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: palette.paperDim }}>
@@ -146,6 +174,7 @@ function ProgressArc({ pct }) {
     </div>
   );
 }
+
 function PaperCard({ children }) {
   return (
     <div className="rounded-2xl p-6 relative" style={{ background: palette.paper, border: `1px solid ${palette.paperLine}`, boxShadow: "0 20px 40px -20px rgba(20,23,31,0.35)" }}>
@@ -154,37 +183,50 @@ function PaperCard({ children }) {
     </div>
   );
 }
+
 function TextField({ icon: Icon, type = "text", value, onChange, placeholder, onKeyDown, dark }) {
   const [show, setShow] = useState(false);
   const isPassword = type === "password";
   return (
-    <div className="flex items-center gap-2 px-4 py-3 rounded-lg mb-4" style={{ background: dark ? palette.inkSoft : "#FFFFFF", border: `1px solid ${dark ? palette.inkLine : palette.paperLine}` }}>
+    <div
+      className="flex items-center gap-2 px-4 py-3 rounded-lg mb-4"
+      style={{ background: dark ? palette.inkSoft : "#FFFFFF", border: `1px solid ${dark ? palette.inkLine : palette.paperLine}` }}
+    >
       <Icon size={16} color={palette.ash} />
-      <input value={value} onChange={onChange} onKeyDown={onKeyDown} type={isPassword && show ? "text" : type} placeholder={placeholder}
-        className="flex-1 outline-none bg-transparent text-sm" style={{ ...sans, color: dark ? palette.inkText : palette.paperText }} />
-      {isPassword && <button type="button" onClick={() => setShow(!show)}>{show ? <EyeOff size={16} color={palette.ash} /> : <Eye size={16} color={palette.ash} />}</button>}
-    </div>
-  );
-}
-
-// Pequeña insignia que indica que una pantalla está compartida
-function SharedBadge({ name }) {
-  return (
-    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-4" style={{ background: palette.pineSoft }}>
-      <Users size={11} color={palette.pineDeep} />
-      <span className="text-[10px]" style={{ ...sans, color: palette.pineDeep }}>Compartido con {name}</span>
+      <input
+        value={value}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        type={isPassword && show ? "text" : type}
+        placeholder={placeholder}
+        className="flex-1 outline-none bg-transparent text-sm"
+        style={{ ...sans, color: dark ? palette.inkText : palette.paperText }}
+      />
+      {isPassword && (
+        <button type="button" onClick={() => setShow(!show)}>
+          {show ? <EyeOff size={16} color={palette.ash} /> : <Eye size={16} color={palette.ash} />}
+        </button>
+      )}
     </div>
   );
 }
 
 // =============================================================================
-// AUTENTICACIÓN — pantallas
+// PANTALLAS DE AUTENTICACIÓN
 // =============================================================================
 function LoginScreen({ onGoSignup }) {
   const { login, authError, setAuthError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const submit = () => { if (!email || !password) return setAuthError("Completa correo y contraseña."); login(email, password); };
+
+  const submit = () => {
+    if (!email || !password) {
+      setAuthError("Completa correo y contraseña.");
+      return;
+    }
+    login(email, password);
+  };
+
   return (
     <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
       <div className="max-w-md mx-auto w-full">
@@ -192,27 +234,58 @@ function LoginScreen({ onGoSignup }) {
           <Moon size={16} color={palette.ash} />
           <span className="text-xs tracking-widest uppercase" style={{ ...sans, color: palette.ash }}>Ancla</span>
         </div>
+
         <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Bienvenido de vuelta</p>
         <h1 className="text-2xl mb-8" style={{ ...serif, color: palette.inkText }}>Tu información es solo tuya.</h1>
+
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
-        <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
-        {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
-        <PrimaryButton onClick={submit} style={{ width: "100%", marginBottom: 16 }}>Iniciar sesión <ArrowRight size={16} /></PrimaryButton>
-        <p className="text-xs text-center mb-2" style={{ ...sans, color: palette.ash }}>Cuenta de prueba: demo@ancla.app / ancla123</p>
+        <TextField
+          icon={Lock}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Contraseña"
+          dark
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+        />
+
+        {authError && (
+          <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>
+        )}
+
+        <PrimaryButton onClick={submit} style={{ width: "100%", marginBottom: 16 }}>
+          Iniciar sesión <ArrowRight size={16} />
+        </PrimaryButton>
+
+        <p className="text-xs text-center mb-2" style={{ ...sans, color: palette.ash }}>
+          Cuenta de prueba: demo@ancla.app / ancla123
+        </p>
+
         <div className="flex items-center justify-center gap-1 mt-4">
           <span className="text-sm" style={{ ...sans, color: palette.ash }}>¿Aún no tienes cuenta?</span>
-          <button onClick={onGoSignup} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>Crear una</button>
+          <button onClick={onGoSignup} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>
+            Crear una
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
 function SignupScreen({ onGoLogin }) {
   const { signup, authError, setAuthError } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const submit = () => { if (!name || !email || !password) return setAuthError("Completa todos los campos."); signup(name, email, password); };
+
+  const submit = () => {
+    if (!name || !email || !password) {
+      setAuthError("Completa todos los campos.");
+      return;
+    }
+    signup(name, email, password);
+  };
+
   return (
     <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
       <div className="max-w-md mx-auto w-full">
@@ -220,46 +293,75 @@ function SignupScreen({ onGoLogin }) {
           <Moon size={16} color={palette.ash} />
           <span className="text-xs tracking-widest uppercase" style={{ ...sans, color: palette.ash }}>Ancla</span>
         </div>
+
         <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Crear cuenta</p>
         <h1 className="text-2xl mb-2" style={{ ...serif, color: palette.inkText }}>Esto es solo tuyo.</h1>
-        <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>Nadie más ve lo que registres aquí, ni siquiera nosotros sin tu permiso.</p>
+        <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>
+          Nadie más ve lo que registres aquí, ni siquiera nosotros sin tu permiso.
+        </p>
+
         <TextField icon={User} value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" dark />
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
-        <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña (mínimo 6 caracteres)" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
+        <TextField
+          icon={Lock}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Contraseña (mínimo 6 caracteres)"
+          dark
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+        />
+
         {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
-        <PrimaryButton onClick={submit} style={{ width: "100%", marginBottom: 16 }}>Crear mi cuenta <ArrowRight size={16} /></PrimaryButton>
+
+        <PrimaryButton onClick={submit} style={{ width: "100%", marginBottom: 16 }}>
+          Crear mi cuenta <ArrowRight size={16} />
+        </PrimaryButton>
+
         <div className="flex items-center justify-center gap-1 mt-4">
           <span className="text-sm" style={{ ...sans, color: palette.ash }}>¿Ya tienes cuenta?</span>
-          <button onClick={onGoLogin} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>Inicia sesión</button>
+          <button onClick={onGoLogin} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>
+            Inicia sesión
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
 function AuthGate({ children }) {
   const { currentUser } = useAuth();
   const [mode, setMode] = useState("login");
+
   if (currentUser) return children;
+
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)" }}>
-      {mode === "login" ? <LoginScreen onGoSignup={() => setMode("signup")} /> : <SignupScreen onGoLogin={() => setMode("login")} />}
+      {mode === "login" ? (
+        <LoginScreen onGoSignup={() => setMode("signup")} />
+      ) : (
+        <SignupScreen onGoLogin={() => setMode("login")} />
+      )}
     </div>
   );
 }
 
 // =============================================================================
-// ONBOARDING
+// ONBOARDING (igual que antes, ya autenticado)
 // =============================================================================
 function WaitScreen({ onBack }) {
   return (
     <div className="min-h-full flex flex-col items-center justify-center p-8 text-center" style={{ background: palette.ink }}>
       <Coffee size={28} color={palette.dawnSoft} className="mb-6" />
       <h2 className="text-xl mb-3 max-w-xs" style={{ ...serif, color: palette.inkText }}>Está bien. No hay prisa.</h2>
-      <p className="text-sm max-w-xs leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>Vuelve cuando estés listo.</p>
+      <p className="text-sm max-w-xs leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>
+        Vuelve cuando estés listo. Esto va a seguir aquí, sin juzgarte por el tiempo que tomes.
+      </p>
       <GhostButton onClick={onBack} style={{ color: palette.inkText, borderColor: palette.ash }}>Volver</GhostButton>
     </div>
   );
 }
+
 function InventoryIntro({ onStart, name }) {
   return (
     <div className="min-h-full flex flex-col justify-center p-6" style={{ background: palette.ink }}>
@@ -267,13 +369,16 @@ function InventoryIntro({ onStart, name }) {
         <PaperCard>
           <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.pine }}>Inventario de Realidad</p>
           <h2 className="text-2xl mb-4" style={{ ...serif, color: palette.paperText }}>{name}, esto es lo que es verdad hoy.</h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ ...sans, color: "#4B4F42" }}>Vamos a escribir, una cosa a la vez, cada deuda con su nombre y su monto exacto.</p>
+          <p className="text-sm leading-relaxed mb-6" style={{ ...sans, color: "#4B4F42" }}>
+            Vamos a escribir, una cosa a la vez, cada deuda con su nombre y su monto exacto. Nadie más ve esto todavía.
+          </p>
           <PrimaryButton onClick={onStart} style={{ width: "100%" }}>Empezar <ArrowRight size={16} /></PrimaryButton>
         </PaperCard>
       </div>
     </div>
   );
 }
+
 function Welcome({ onReady, onWait, name }) {
   return (
     <div className="min-h-full flex flex-col justify-between p-8" style={{ background: palette.ink }}>
@@ -284,7 +389,9 @@ function Welcome({ onReady, onWait, name }) {
       <div className="flex-1 flex flex-col justify-center max-w-md mx-auto text-center">
         <p className="text-xs tracking-widest uppercase mb-6" style={{ ...sans, color: palette.dawnSoft }}>Antes de empezar</p>
         <h1 className="text-3xl leading-snug mb-6" style={{ ...serif, color: palette.inkText }}>Hola, {name}.</h1>
-        <p className="text-base leading-relaxed mb-2" style={{ ...sans, color: "#C7CAD4" }}>No vamos a pedirte que arregles nada todavía.</p>
+        <p className="text-base leading-relaxed mb-2" style={{ ...sans, color: "#C7CAD4" }}>
+          No vamos a pedirte que arregles nada todavía. Solo que mires tus números de frente, sin suavizarlos.
+        </p>
         <p className="text-sm leading-relaxed" style={{ ...sans, color: palette.ash }}>Esto toma diez minutos. Puedes pausar cuando quieras.</p>
       </div>
       <div className="max-w-md mx-auto w-full flex flex-col gap-3 pb-4">
@@ -294,34 +401,49 @@ function Welcome({ onReady, onWait, name }) {
     </div>
   );
 }
+
 function DebtCapture({ debts, setDebts, onDone, onPauseForToday }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState("who");
   const total = debts.reduce((s, d) => s + d.remaining, 0);
+
   const addDebt = () => {
     if (!name || !amount) return;
     const val = parseFloat(amount) || 0;
     setDebts([...debts, { id: Date.now(), name, original: val, remaining: val }]);
-    setName(""); setAmount(""); setStage("who");
+    setName("");
+    setAmount("");
+    setStage("who");
   };
   const removeDebt = (id) => setDebts(debts.filter((d) => d.id !== id));
+
   return (
     <div className="min-h-full flex flex-col p-6" style={{ background: palette.ink }}>
       <div className="max-w-md mx-auto w-full flex-1 flex flex-col">
         <div className="mb-6">
           <ProgressArc pct={Math.min(85, 20 + debts.length * 12)} />
-          <p className="text-xs mt-2" style={{ ...sans, color: palette.ash }}>{debts.length === 0 ? "Empecemos por lo primero que te venga a la mente." : `${debts.length} registrados.`}</p>
+          <p className="text-xs mt-2" style={{ ...sans, color: palette.ash }}>
+            {debts.length === 0 ? "Empecemos por lo primero que te venga a la mente." : `${debts.length} registrados — puedes seguir o pausar.`}
+          </p>
         </div>
         <PaperCard>
           {stage === "who" && (
             <>
               <p className="text-xs tracking-widest uppercase mb-2" style={{ ...sans, color: palette.pine }}>Pregunta {debts.length + 1}</p>
               <h3 className="text-xl mb-5" style={{ ...serif, color: palette.paperText }}>¿A quién le debes?</h3>
-              <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Tarjeta BBVA, mi hermano..."
-                className="w-full px-4 py-3 rounded-lg text-sm mb-5 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }}
-                onKeyDown={(e) => e.key === "Enter" && name && setStage("amount")} />
-              <PrimaryButton onClick={() => name && setStage("amount")} disabled={!name} style={{ width: "100%" }}>Siguiente <ArrowRight size={16} /></PrimaryButton>
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej: Tarjeta BBVA, mi hermano..."
+                className="w-full px-4 py-3 rounded-lg text-sm mb-5 outline-none"
+                style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }}
+                onKeyDown={(e) => e.key === "Enter" && name && setStage("amount")}
+              />
+              <PrimaryButton onClick={() => name && setStage("amount")} disabled={!name} style={{ width: "100%" }}>
+                Siguiente <ArrowRight size={16} />
+              </PrimaryButton>
             </>
           )}
           {stage === "amount" && (
@@ -331,17 +453,27 @@ function DebtCapture({ debts, setDebts, onDone, onPauseForToday }) {
               <p className="text-xs mb-5" style={{ ...sans, color: "#6B6F5F" }}>No redondees hacia abajo.</p>
               <div className="flex items-center gap-2 mb-5">
                 <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
-                <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-                  className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }}
-                  onKeyDown={(e) => e.key === "Enter" && amount && addDebt()} />
+                <input
+                  autoFocus
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-4 py-3 rounded-lg text-lg outline-none"
+                  style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }}
+                  onKeyDown={(e) => e.key === "Enter" && amount && addDebt()}
+                />
               </div>
               <div className="flex gap-3">
-                <GhostButton onClick={() => setStage("who")} style={{ color: palette.paperText, borderColor: palette.paperLine }}><ArrowLeft size={14} /> Atrás</GhostButton>
+                <GhostButton onClick={() => setStage("who")} style={{ color: palette.paperText, borderColor: palette.paperLine }}>
+                  <ArrowLeft size={14} /> Atrás
+                </GhostButton>
                 <PrimaryButton onClick={addDebt} disabled={!amount} style={{ flex: 1 }}>Guardar <Check size={16} /></PrimaryButton>
               </div>
             </>
           )}
         </PaperCard>
+
         {debts.length > 0 && (
           <div className="mt-4 space-y-2">
             {debts.map((d) => (
@@ -359,14 +491,18 @@ function DebtCapture({ debts, setDebts, onDone, onPauseForToday }) {
             </div>
           </div>
         )}
+
         <div className="flex gap-3 mt-6">
-          <GhostButton onClick={onPauseForToday} style={{ flex: 1, color: palette.inkText, borderColor: palette.ash }}><Pause size={14} /> Ya terminé por hoy</GhostButton>
+          <GhostButton onClick={onPauseForToday} style={{ flex: 1, color: palette.inkText, borderColor: palette.ash }}>
+            <Pause size={14} /> Ya terminé por hoy
+          </GhostButton>
           {debts.length > 0 && <PrimaryButton onClick={onDone} style={{ flex: 1 }}>Terminar <ArrowRight size={16} /></PrimaryButton>}
         </div>
       </div>
     </div>
   );
 }
+
 function PausedScreen({ debts, onResume }) {
   const total = debts.reduce((s, d) => s + d.remaining, 0);
   return (
@@ -374,10 +510,12 @@ function PausedScreen({ debts, onResume }) {
       <Moon size={26} color={palette.dawnSoft} className="mb-6" />
       <h2 className="text-xl mb-3 max-w-xs" style={{ ...serif, color: palette.inkText }}>Guardado. Nada se pierde.</h2>
       <p className="text-sm max-w-xs leading-relaxed mb-2" style={{ ...sans, color: palette.ash }}>Llevas {debts.length} registros por ${total.toLocaleString()}.</p>
+      <p className="text-sm max-w-xs leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>Puedes continuar cuando quieras, incluso mañana.</p>
       <PrimaryButton onClick={onResume}>Continuar ahora <ArrowRight size={16} /></PrimaryButton>
     </div>
   );
 }
+
 function RealityReveal({ debts, onContinue }) {
   const total = debts.reduce((s, d) => s + d.remaining, 0);
   return (
@@ -397,17 +535,17 @@ function RealityReveal({ debts, onContinue }) {
 }
 
 // =============================================================================
-// PANEL / RADAR / DIARIO / REVISIÓN — ahora con insignia de compartido opcional
+// PANEL DE VERDAD / RADAR / DIARIO / REVISIÓN (igual que la versión anterior)
 // =============================================================================
-function TruthPanel({ debts, streak, onGoRadar, name, shared, partnerName }) {
+function TruthPanel({ debts, streak, onGoRadar, name }) {
   const total = debts.reduce((s, d) => s + d.remaining, 0);
   const weeklyAvailable = 1450;
   const smallest = debts.filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining)[0];
+
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Panel de Verdad</p>
-      <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>Hoy, {name}, esto es lo que importa.</h2>
-      {shared && <SharedBadge name={partnerName} />}
+      <h2 className="text-2xl mb-6" style={{ ...serif, color: palette.paperText }}>Hoy, {name}, esto es lo que importa.</h2>
       <div className="grid grid-cols-1 gap-3 mb-5">
         <div className="rounded-xl p-5" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
           <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Esto debes hoy</p>
@@ -436,6 +574,7 @@ function TruthPanel({ debts, streak, onGoRadar, name, shared, partnerName }) {
     </div>
   );
 }
+
 function CelebrationModal({ debtName, onClose }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center p-6 z-50" style={{ background: "rgba(20,23,31,0.7)" }}>
@@ -445,12 +584,15 @@ function CelebrationModal({ debtName, onClose }) {
         </div>
         <p className="text-xs tracking-widest uppercase mb-2" style={{ ...sans, color: palette.pine }}>Liquidada</p>
         <h3 className="text-lg mb-3" style={{ ...serif, color: palette.paperText }}>{debtName}</h3>
-        <p className="text-sm leading-relaxed mb-6" style={{ ...sans, color: palette.ashPaper }}>No necesitas más celebración que esta.</p>
+        <p className="text-sm leading-relaxed mb-6" style={{ ...sans, color: palette.ashPaper }}>
+          No necesitas más celebración que esta. Lo que pagabas aquí ahora empuja tu siguiente batalla.
+        </p>
         <PrimaryButton onClick={onClose} style={{ width: "100%" }}>Seguir <ArrowRight size={16} /></PrimaryButton>
       </div>
     </div>
   );
 }
+
 function DebtRow({ debt, isTarget, onPay }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
@@ -479,7 +621,8 @@ function DebtRow({ debt, isTarget, onPay }) {
           <div className="flex items-center gap-2">
             <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
             <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+              style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
             <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onPay(debt.id, val); setAmount(""); setOpen(false); }}
               className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
           </div>
@@ -488,7 +631,8 @@ function DebtRow({ debt, isTarget, onPay }) {
     </div>
   );
 }
-function DebtRadar({ debts, onPay, shared, partnerName }) {
+
+function DebtRadar({ debts, onPay }) {
   const active = [...debts].filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining);
   const done = debts.filter((d) => d.remaining <= 0);
   const targetId = active[0]?.id;
@@ -497,8 +641,9 @@ function DebtRadar({ debts, onPay, shared, partnerName }) {
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1" style={{ ...sans, color: palette.pine }}>Radar de Deudas</p>
       <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>De la más pequeña a la más grande.</h2>
-      {shared && <SharedBadge name={partnerName} />}
-      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>Cada abono va primero a tu foco actual.</p>
+      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>
+        Cada abono va primero a tu foco actual. Al liquidarla, ese pago se suma a la siguiente.
+      </p>
       <div className="rounded-xl p-4 mb-5 flex items-center justify-between" style={{ background: palette.ink }}>
         <span className="text-xs" style={{ ...sans, color: palette.ash }}>Total restante</span>
         <span className="text-lg" style={{ ...mono, color: palette.inkText }}>${totalRemaining.toLocaleString()}</span>
@@ -519,17 +664,21 @@ function DebtRadar({ debts, onPay, shared, partnerName }) {
     </div>
   );
 }
+
 function DiaryScreen({ entries, onAddEntry }) {
   const [mood, setMood] = useState(null);
   const [text, setText] = useState("");
-  const save = () => { if (!mood) return; onAddEntry({ id: Date.now(), mood, text, date: "Hoy" }); setMood(null); setText(""); };
+  const save = () => {
+    if (!mood) return;
+    onAddEntry({ id: Date.now(), mood, text, date: "Hoy" });
+    setMood(null);
+    setText("");
+  };
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Diario Financiero</p>
       <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>¿Cómo te sentiste con el dinero esta semana?</h2>
-      <p className="text-xs mb-5 flex items-center gap-1.5" style={{ ...sans, color: palette.ashPaper }}>
-        <Lock size={11} /> Este espacio es privado por defecto, aunque tengas Modo Compartido activado.
-      </p>
+      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>Nombrar con precisión es el primer acto de sanidad.</p>
       <div className="grid grid-cols-2 gap-3 mb-5">
         {moods.map((m) => (
           <button key={m.key} onClick={() => setMood(m.key)} className="rounded-xl p-4 text-sm transition-all duration-200"
@@ -539,7 +688,8 @@ function DiaryScreen({ entries, onAddEntry }) {
         ))}
       </div>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Si quieres, cuenta un poco más (opcional)..." rows={3}
-        className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none resize-none" style={{ ...sans, background: palette.paperCard, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+        className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none resize-none"
+        style={{ ...sans, background: palette.paperCard, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
       <PrimaryButton onClick={save} disabled={!mood} style={{ width: "100%" }}>Guardar entrada <Check size={16} /></PrimaryButton>
       {entries.length > 0 && (
         <div className="mt-8">
@@ -561,8 +711,13 @@ function DiaryScreen({ entries, onAddEntry }) {
     </div>
   );
 }
+
 function WeeklyReview({ onComplete, completed }) {
-  const questions = ["¿Fui honesto esta semana, incluso cuando era incómodo?", "¿Estuve presente con las personas que más me importan?", "¿Tomé decisiones desde la calma o desde el miedo?"];
+  const questions = [
+    "¿Fui honesto esta semana, incluso cuando era incómodo?",
+    "¿Estuve presente con las personas que más me importan?",
+    "¿Tomé decisiones desde la calma o desde el miedo?",
+  ];
   const [answers, setAnswers] = useState([null, null, null]);
   const setAnswer = (i, val) => { const c = [...answers]; c[i] = val; setAnswers(c); };
   const allAnswered = answers.every((a) => a !== null);
@@ -573,7 +728,7 @@ function WeeklyReview({ onComplete, completed }) {
       {completed ? (
         <div className="rounded-xl p-6 text-center" style={{ background: palette.pineSoft }}>
           <Check size={24} color={palette.pine} className="mx-auto mb-3" />
-          <p style={{ ...serif, color: palette.pineDeep }}>Ya hiciste tu revisión esta semana.</p>
+          <p style={{ ...serif, color: palette.pineDeep }}>Ya hiciste tu revisión esta semana. Nos vemos la próxima.</p>
         </div>
       ) : (
         <>
@@ -596,6 +751,8 @@ function WeeklyReview({ onComplete, completed }) {
     </div>
   );
 }
+
+// --- Nueva pantalla: Cuenta (perfil + cerrar sesión) ------------------------
 function AccountScreen() {
   const { currentUser, logout } = useAuth();
   const initial = currentUser?.name?.charAt(0)?.toUpperCase() || "?";
@@ -603,6 +760,7 @@ function AccountScreen() {
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Cuenta</p>
       <h2 className="text-2xl mb-6" style={{ ...serif, color: palette.paperText }}>Tu espacio, tus datos.</h2>
+
       <div className="rounded-xl p-5 mb-4 flex items-center gap-4" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: palette.pine }}>
           <span style={{ ...serif, color: "#fff" }} className="text-lg">{initial}</span>
@@ -612,245 +770,18 @@ function AccountScreen() {
           <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{currentUser?.email}</p>
         </div>
       </div>
+
       <div className="rounded-xl p-4 mb-6" style={{ background: palette.pineSoft }}>
-        <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.pineDeep }}>Por ahora esto es una pantalla de prueba: tus datos no están en un servidor todavía.</p>
-      </div>
-      <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}><LogOut size={14} /> Cerrar sesión</GhostButton>
-    </div>
-  );
-}
-function AddGoalForm({ onAdd, onCancel }) {
-  const [person, setPerson] = useState("");
-  const [why, setWhy] = useState("");
-  const [target, setTarget] = useState("");
-  const submit = () => { if (!person || !target) return; onAdd({ id: Date.now(), person, why, target: parseFloat(target) || 0, saved: 0 }); };
-  return (
-    <PaperCard>
-      <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.pine }}>Nueva meta</p>
-      <h3 className="text-lg mb-4" style={{ ...serif, color: palette.paperText }}>¿Para quién es esta meta?</h3>
-      <input autoFocus value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Ej: Mis hijos, mi esposa, yo mismo..."
-        className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <textarea value={why} onChange={(e) => setWhy(e.target.value)} placeholder="¿Qué quieres que vean en ti? (opcional)" rows={2}
-        className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none resize-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <div className="flex items-center gap-2 mb-5">
-        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
-        <input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Monto meta"
-          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      </div>
-      <div className="flex gap-3">
-        <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
-        <PrimaryButton onClick={submit} disabled={!person || !target} style={{ flex: 1 }}>Crear meta <Check size={16} /></PrimaryButton>
-      </div>
-    </PaperCard>
-  );
-}
-function GoalCard({ goal, index, onContribute }) {
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-  const pct = Math.min(100, (goal.saved / goal.target) * 100);
-  const color = goalColors[index % goalColors.length];
-  const complete = goal.saved >= goal.target;
-  return (
-    <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-      <div className="flex items-start gap-3 mb-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: color }}><Heart size={16} color="#fff" /></div>
-        <div className="flex-1">
-          <p className="text-base" style={{ ...serif, color: palette.paperText }}>{goal.person}</p>
-          {goal.why && <p className="text-xs mt-0.5" style={{ ...sans, color: palette.ashPaper }}>{goal.why}</p>}
-        </div>
-        {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
-      </div>
-      <div className="w-full h-2 rounded-full overflow-hidden mb-2" style={{ background: palette.paperDim }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs" style={{ ...mono, color: palette.ashPaper }}>${goal.saved.toLocaleString()} de ${goal.target.toLocaleString()}</span>
-        <span className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}%</span>
-      </div>
-      {!complete && (
-        !open ? (
-          <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Aportar</button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
-            <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-            <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onContribute(goal.id, val); setAmount(""); setOpen(false); }}
-              className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
-function PurposeScreen({ goals, onAddGoal, onContribute, shared, partnerName }) {
-  const [showForm, setShowForm] = useState(false);
-  return (
-    <div className="p-6">
-      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Propósito</p>
-      <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>¿Para quién estás haciendo esto?</h2>
-      {shared && <SharedBadge name={partnerName} />}
-      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>No para qué — para quién.</p>
-      {goals.map((g, i) => <GoalCard key={g.id} goal={g} index={i} onContribute={onContribute} />)}
-      {showForm ? (
-        <AddGoalForm onAdd={(g) => { onAddGoal(g); setShowForm(false); }} onCancel={() => setShowForm(false)} />
-      ) : (
-        <button onClick={() => setShowForm(true)} className="w-full rounded-xl p-4 flex items-center justify-center gap-2 text-sm transition-all duration-200"
-          style={{ ...sans, border: `1px dashed ${palette.paperLine}`, color: palette.pine }}>
-          <Plus size={16} /> Agregar una meta con nombre
-        </button>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// MÓDULO NUEVO: PAREJA (Modo Compartido)
-// =============================================================================
-const initialSharing = { debts: false, purpose: false, panel: false, diary: false };
-
-function InvitePartner({ onSend }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  return (
-    <PaperCard>
-      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: palette.pineSoft }}>
-        <Users size={20} color={palette.pineDeep} />
-      </div>
-      <h3 className="text-xl mb-2" style={{ ...serif, color: palette.paperText }}>Invita a tu pareja.</h3>
-      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: "#4B4F42" }}>
-        El secreto no protege a nadie — aísla a los dos. Pero tú decides qué compartir y cuándo:
-        esta invitación no expone nada todavía, solo abre la puerta.
-      </p>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Su nombre"
-        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Su correo"
-        className="w-full px-4 py-3 rounded-lg text-sm mb-5 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <PrimaryButton onClick={() => name && email && onSend(name, email)} disabled={!name || !email} style={{ width: "100%" }}>
-        Enviar invitación <ArrowRight size={16} />
-      </PrimaryButton>
-    </PaperCard>
-  );
-}
-
-function PendingInvite({ name, onCancel, onSimulateAccept }) {
-  return (
-    <PaperCard>
-      <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: palette.paperDim }}>
-        <Clock size={20} color={palette.ashPaper} />
-      </div>
-      <h3 className="text-xl mb-2" style={{ ...serif, color: palette.paperText }}>Esperando a {name}.</h3>
-      <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: "#4B4F42" }}>
-        Le enviamos la invitación. En cuanto la acepte, podrás elegir qué compartir con ella/él —
-        nada se comparte automáticamente todavía.
-      </p>
-      <div className="flex gap-3">
-        <GhostButton onClick={onCancel} style={{ flex: 1, color: palette.paperText, borderColor: palette.paperLine }}>Cancelar invitación</GhostButton>
-        <PrimaryButton onClick={onSimulateAccept} style={{ flex: 1 }}>Simular aceptación</PrimaryButton>
-      </div>
-    </PaperCard>
-  );
-}
-
-function SharingToggle({ label, description, checked, onChange, recommended }) {
-  return (
-    <button
-      onClick={onChange}
-      className="w-full rounded-xl p-4 mb-3 text-left flex items-start justify-between gap-3 transition-all duration-200"
-      style={{ background: palette.paperCard, border: `1px solid ${checked ? palette.pine : palette.paperLine}`, borderWidth: checked ? 2 : 1 }}
-    >
-      <div>
-        <p className="text-sm mb-1" style={{ ...sans, color: palette.paperText }}>
-          {label} {recommended === false && <span className="text-[10px]" style={{ color: palette.ashPaper }}>· desactivado por defecto</span>}
+        <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.pineDeep }}>
+          Ahora mismo esto es una pantalla de prueba: tus datos no están en un servidor todavía,
+          solo en esta sesión. El siguiente paso técnico es conectar esto a un backend real
+          (Firebase) para que tu información persista entre dispositivos.
         </p>
-        <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>{description}</p>
-      </div>
-      <div
-        className="w-10 h-6 rounded-full flex-shrink-0 relative transition-all duration-200"
-        style={{ background: checked ? palette.pine : palette.paperDim }}
-      >
-        <div
-          className="w-4 h-4 rounded-full absolute top-1 transition-all duration-200"
-          style={{ background: "#fff", left: checked ? 20 : 4 }}
-        />
-      </div>
-    </button>
-  );
-}
-
-function ConnectedPartner({ partner, sharing, onToggle, onDisconnect }) {
-  return (
-    <>
-      <div className="rounded-xl p-5 mb-5 flex items-center gap-4" style={{ background: palette.pineSoft }}>
-        <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: palette.pine }}>
-          <span style={{ ...serif, color: "#fff" }} className="text-base">{partner.name.charAt(0).toUpperCase()}</span>
-        </div>
-        <div className="flex-1">
-          <p className="text-sm" style={{ ...sans, color: palette.pineDeep }}>{partner.name}</p>
-          <p className="text-xs flex items-center gap-1" style={{ ...sans, color: palette.pineDeep }}>
-            <ShieldCheck size={11} /> Conectado
-          </p>
-        </div>
       </div>
 
-      <p className="text-xs uppercase tracking-widest mb-3" style={{ ...sans, color: palette.ashPaper }}>
-        Qué compartes con {partner.name}
-      </p>
-
-      <SharingToggle
-        label="Radar de Deudas"
-        description="Ve el total de deudas y el progreso de la bola de nieve."
-        checked={sharing.debts}
-        onChange={() => onToggle("debts")}
-      />
-      <SharingToggle
-        label="Propósito"
-        description="Ve las metas con nombre y su progreso."
-        checked={sharing.purpose}
-        onChange={() => onToggle("purpose")}
-      />
-      <SharingToggle
-        label="Panel de Verdad"
-        description="Ve tus tres números principales y tu racha."
-        checked={sharing.panel}
-        onChange={() => onToggle("panel")}
-      />
-      <SharingToggle
-        label="Diario Financiero"
-        description="Tus entradas emocionales. Esto es lo más vulnerable — piénsalo bien antes de activarlo."
-        checked={sharing.diary}
-        onChange={() => onToggle("diary")}
-        recommended={false}
-      />
-
-      <GhostButton onClick={onDisconnect} style={{ width: "100%", marginTop: 8, color: palette.errorText, borderColor: palette.errorText }}>
-        Dejar de compartir con {partner.name}
+      <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}>
+        <LogOut size={14} /> Cerrar sesión
       </GhostButton>
-    </>
-  );
-}
-
-function PartnerScreen({ partnerState, setPartnerState }) {
-  const { status, name, email, sharing } = partnerState;
-
-  const sendInvite = (n, e) => setPartnerState({ status: "pending", name: n, email: e, sharing: initialSharing });
-  const cancelInvite = () => setPartnerState({ status: "none", name: "", email: "", sharing: initialSharing });
-  const simulateAccept = () => setPartnerState((p) => ({ ...p, status: "connected" }));
-  const toggleShare = (key) => setPartnerState((p) => ({ ...p, sharing: { ...p.sharing, [key]: !p.sharing[key] } }));
-  const disconnect = () => setPartnerState({ status: "none", name: "", email: "", sharing: initialSharing });
-
-  return (
-    <div className="p-6">
-      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Modo Compartido</p>
-      <h2 className="text-2xl mb-5" style={{ ...serif, color: palette.paperText }}>
-        {status === "connected" ? "Enfrentando esto juntos." : "Nadie tiene que cargar esto solo."}
-      </h2>
-
-      {status === "none" && <InvitePartner onSend={sendInvite} />}
-      {status === "pending" && <PendingInvite name={name} onCancel={cancelInvite} onSimulateAccept={simulateAccept} />}
-      {status === "connected" && (
-        <ConnectedPartner partner={{ name, email }} sharing={sharing} onToggle={toggleShare} onDisconnect={disconnect} />
-      )}
     </div>
   );
 }
@@ -862,21 +793,19 @@ function BottomNav({ tab, setTab }) {
   const items = [
     { key: "home", label: "Inicio", icon: Home },
     { key: "radar", label: "Deudas", icon: Compass },
-    { key: "purpose", label: "Propósito", icon: Heart },
-    { key: "partner", label: "Pareja", icon: Users },
     { key: "diary", label: "Diario", icon: BookOpen },
     { key: "review", label: "Revisión", icon: Calendar },
     { key: "account", label: "Cuenta", icon: User },
   ];
   return (
-    <div className="flex items-center justify-around py-3 px-1 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
+    <div className="flex items-center justify-around py-3 px-1" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
       {items.map((it) => {
         const Icon = it.icon;
         const active = tab === it.key;
         return (
-          <button key={it.key} onClick={() => setTab(it.key)} className="flex flex-col items-center gap-1 px-1.5 py-1 flex-shrink-0">
-            <Icon size={15} color={active ? palette.pine : palette.ash} />
-            <span className="text-[8px]" style={{ ...sans, color: active ? palette.pine : palette.ash }}>{it.label}</span>
+          <button key={it.key} onClick={() => setTab(it.key)} className="flex flex-col items-center gap-1 px-2 py-1">
+            <Icon size={17} color={active ? palette.pine : palette.ash} />
+            <span className="text-[9px]" style={{ ...sans, color: active ? palette.pine : palette.ash }}>{it.label}</span>
           </button>
         );
       })}
@@ -885,18 +814,16 @@ function BottomNav({ tab, setTab }) {
 }
 
 // =============================================================================
-// APP PRINCIPAL
+// APP PRINCIPAL (ya autenticada)
 // =============================================================================
 function MainApp() {
   const { currentUser } = useAuth();
-  const [onboardPhase, setOnboardPhase] = useState("welcome");
+  const [onboardPhase, setOnboardPhase] = useState("welcome"); // welcome -> wait -> intro -> capture -> paused -> reveal -> done
   const [tab, setTab] = useState("home");
   const [debts, setDebts] = useState([]);
   const [celebrate, setCelebrate] = useState(null);
   const [diaryEntries, setDiaryEntries] = useState([]);
   const [reviewDone, setReviewDone] = useState(false);
-  const [goals, setGoals] = useState(seedGoals);
-  const [partnerState, setPartnerState] = useState({ status: "none", name: "", email: "", sharing: initialSharing });
   const streak = 12;
 
   const handlePay = (id, amount) => {
@@ -921,10 +848,8 @@ function MainApp() {
       return updated;
     });
   };
-  const handleContribute = (id, amount) => setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, saved: Math.min(g.target, g.saved + amount) } : g)));
 
   const firstName = currentUser?.name?.split(" ")[0] || "tú";
-  const isConnected = partnerState.status === "connected";
 
   if (onboardPhase !== "done") {
     return (
@@ -932,10 +857,18 @@ function MainApp() {
         {onboardPhase === "welcome" && <Welcome name={firstName} onReady={() => setOnboardPhase("intro")} onWait={() => setOnboardPhase("wait")} />}
         {onboardPhase === "wait" && <WaitScreen onBack={() => setOnboardPhase("welcome")} />}
         {onboardPhase === "intro" && <InventoryIntro name={firstName} onStart={() => setOnboardPhase("capture")} />}
-        {onboardPhase === "capture" && <DebtCapture debts={debts} setDebts={setDebts} onDone={() => setOnboardPhase("reveal")} onPauseForToday={() => setOnboardPhase("paused")} />}
+        {onboardPhase === "capture" && (
+          <DebtCapture debts={debts} setDebts={setDebts} onDone={() => setOnboardPhase("reveal")} onPauseForToday={() => setOnboardPhase("paused")} />
+        )}
         {onboardPhase === "paused" && <PausedScreen debts={debts} onResume={() => setOnboardPhase("capture")} />}
         {onboardPhase === "reveal" && (
-          <RealityReveal debts={debts.length ? debts : initialDebts} onContinue={() => { setDebts(debts.length ? debts : initialDebts); setOnboardPhase("done"); }} />
+          <RealityReveal
+            debts={debts.length ? debts : initialDebts}
+            onContinue={() => {
+              setDebts(debts.length ? debts : initialDebts);
+              setOnboardPhase("done");
+            }}
+          />
         )}
       </div>
     );
@@ -944,10 +877,8 @@ function MainApp() {
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex flex-col relative" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)", background: palette.paper }}>
       <div className="flex-1 overflow-y-auto">
-        {tab === "home" && <TruthPanel debts={debts} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partnerState.sharing.panel} partnerName={partnerState.name} />}
-        {tab === "radar" && <DebtRadar debts={debts} onPay={handlePay} shared={isConnected && partnerState.sharing.debts} partnerName={partnerState.name} />}
-        {tab === "purpose" && <PurposeScreen goals={goals} onAddGoal={(g) => setGoals([...goals, g])} onContribute={handleContribute} shared={isConnected && partnerState.sharing.purpose} partnerName={partnerState.name} />}
-        {tab === "partner" && <PartnerScreen partnerState={partnerState} setPartnerState={setPartnerState} />}
+        {tab === "home" && <TruthPanel debts={debts} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} />}
+        {tab === "radar" && <DebtRadar debts={debts} onPay={handlePay} />}
         {tab === "diary" && <DiaryScreen entries={diaryEntries} onAddEntry={(e) => setDiaryEntries([e, ...diaryEntries])} />}
         {tab === "review" && <WeeklyReview completed={reviewDone} onComplete={() => setReviewDone(true)} />}
         {tab === "account" && <AccountScreen />}
@@ -958,7 +889,10 @@ function MainApp() {
   );
 }
 
-export default function AnclaAppCompleto() {
+// =============================================================================
+// EXPORT PRINCIPAL
+// =============================================================================
+export default function AnclaAppConLogin() {
   return (
     <AuthProvider>
       <AuthGate>
