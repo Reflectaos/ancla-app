@@ -26,11 +26,19 @@ service cloud.firestore {
           && p.sharing.diary is bool;
       }
 
+      function isValidIncome(inc) {
+        return inc is map
+          && inc.keys().hasOnly(['amount', 'frequency'])
+          && inc.amount is number && inc.amount >= 0
+          && inc.frequency is string && inc.frequency in ['mensual', 'quincenal', 'semanal'];
+      }
+
       function isValidUserDoc(data) {
         return data.keys().hasOnly([
               'name', 'email', 'createdAt', 'updatedAt',
               'streak', 'reviewCompletedThisWeek', 'partner',
-              'legalAcceptedVersion', 'legalAcceptedAt'
+              'legalAcceptedVersion', 'legalAcceptedAt',
+              'income', 'dailyReminderEnabled'
             ])
           && data.name is string && data.name.size() > 0 && data.name.size() < 100
           && data.email is string && data.email.size() > 0 && data.email.size() < 200
@@ -40,7 +48,9 @@ service cloud.firestore {
           && (!('partner' in data) || isValidPartner(data.partner))
           && (!('legalAcceptedVersion' in data) || data.legalAcceptedVersion is string)
           && (!('legalAcceptedAt' in data) || data.legalAcceptedAt is timestamp)
-          && (!('updatedAt' in data) || data.updatedAt is timestamp);
+          && (!('updatedAt' in data) || data.updatedAt is timestamp)
+          && (!('income' in data) || isValidIncome(data.income))
+          && (!('dailyReminderEnabled' in data) || data.dailyReminderEnabled is bool);
       }
 
       allow read: if isOwner();
@@ -51,13 +61,18 @@ service cloud.firestore {
       // Ver ESPECIFICACION_TECNICA.md, sección 4.2.
       match /debts/{debtId} {
         function isValidDebt(data) {
-          return data.keys().hasOnly(['name', 'original', 'remaining', 'person', 'talked', 'createdAt'])
+          return data.keys().hasOnly(['name', 'original', 'remaining', 'person', 'talked', 'createdAt', 'payments'])
             && data.name is string && data.name.size() > 0 && data.name.size() < 200
             && data.original is number && data.original >= 0
             && data.remaining is number && data.remaining >= 0
             && data.person is bool
             && (!('talked' in data) || data.talked is bool)
-            && (!('createdAt' in data) || data.createdAt is timestamp);
+            && (!('createdAt' in data) || data.createdAt is timestamp)
+            // Validación de lista a nivel elemento (map dentro de list) no es
+            // practicable en reglas de Firestore sin iteración — se valida
+            // que sea una lista acotada; la forma de cada entrada la
+            // garantiza el cliente (siempre escribe { amount, date }).
+            && (!('payments' in data) || (data.payments is list && data.payments.size() < 500));
         }
         allow read, delete: if isOwner();
         allow create, update: if isOwner() && isValidDebt(request.resource.data);
@@ -67,12 +82,13 @@ service cloud.firestore {
       // Ver ESPECIFICACION_TECNICA.md, sección 4.3.
       match /goals/{goalId} {
         function isValidGoal(data) {
-          return data.keys().hasOnly(['person', 'why', 'target', 'saved', 'createdAt'])
+          return data.keys().hasOnly(['person', 'why', 'target', 'saved', 'createdAt', 'targetDate'])
             && data.person is string && data.person.size() > 0 && data.person.size() < 200
             && (!('why' in data) || (data.why is string && data.why.size() < 500))
             && data.target is number && data.target >= 0
             && data.saved is number && data.saved >= 0
-            && (!('createdAt' in data) || data.createdAt is timestamp);
+            && (!('createdAt' in data) || data.createdAt is timestamp)
+            && (!('targetDate' in data) || data.targetDate is timestamp);
         }
         allow read, delete: if isOwner();
         allow create, update: if isOwner() && isValidGoal(request.resource.data);

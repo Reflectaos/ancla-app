@@ -355,3 +355,23 @@ Esto cierra el hueco de seguridad descrito en la sección 5.2: un cliente malici
 **Cómo desplegar:** `firebase deploy --only firestore:rules` desde la raíz del proyecto (requiere Firebase CLI autenticado y `firebase.json` apuntando a este archivo).
 
 **Pendiente de verificar:** correr el Firebase Emulator Suite con casos de prueba (escritura con campo extra, tipo incorrecto, mood fuera del enum) antes de desplegar a producción — no hay tests automatizados de reglas todavía.
+
+---
+
+## 12. Actualización — Lote de mejoras de producto (registro, deudas, propósito, diario, ingresos, navegación)
+
+Cambios en `src/screens/firebase-connected/AnclaAppFirebase.jsx`:
+
+- **Login**: agregada la descripción de la app (frase ANCLA — Acepta, Nombra, Comprende, Libérate, Avanza).
+- **Deudas**: se puede registrar una deuda nueva en cualquier momento desde el Radar (no solo en el onboarding) — pensado para el usuario que al principio evita registrar por vergüenza/miedo y después está listo. Las deudas liquidadas se pueden borrar del historial. Cada abono ahora se guarda en un campo `payments` (array de `{ amount, date }`) dentro del documento de la deuda, y se muestra dentro de la misma tarjeta junto con el % pagado.
+- **Propósito**: cada meta tiene ahora `targetDate` opcional (fecha objetivo) y se puede editar o borrar desde su propia tarjeta.
+- **Diario Financiero**: cada entrada muestra su fecha (`createdAt`).
+- **Ingresos**: nuevo campo `income: { amount, frequency }` en `users/{uid}` (frequency: `semanal | quincenal | mensual`), capturable desde Cuenta. El "Disponible esta semana" del Panel de Verdad ya no es un número fijo (`1450`) — se calcula como ingreso normalizado a semana menos abonos a deuda hechos esta semana (lunes a domingo). Si el usuario no ha capturado ingreso, el panel invita a hacerlo en vez de mostrar un dato falso.
+- **Cuenta**: nuevo toggle "Recordatorio diario" (`dailyReminderEnabled`, boolean) — **guarda la preferencia únicamente**; el envío real de la notificación no está implementado (requiere Firebase Cloud Messaging + Cloud Functions, fuera de alcance de este cambio).
+- **Navegación**: la barra inferior se redujo a 7 íconos centrados (Inicio, Deudas, Propósito, Diario, Revisión, Cuenta, Más). Salud, Conversaciones, Pareja y la nueva sección "Acerca de" viven dentro del menú "Más".
+- **Pareja**: por decisión de producto, el Modo Compartido queda como pantalla de "Próximamente en Ancla Plus" (`PartnerLockedScreen`) en vez de la función completa — el código de `PartnerScreen` original se conserva sin usar, por si se reactiva al lanzar la capa de pago.
+- **Acerca de**: nueva sección con perfil de Carlos Sandoval, cita, referencia al libro y footer (Proyecto / Versión / Año + firma).
+
+**Reglas de Firestore actualizadas** (`firestore.rules`) para validar los campos nuevos: `income` y `dailyReminderEnabled` en `users/{uid}`; `payments` en `debts`; `targetDate` en `goals`.
+
+**Pendiente conocido, no resuelto en este lote:** la ruptura de racha tras dos revisiones semanales seguidas sin completar (`streak`) sigue sin implementarse — ver sección 11, nota de la Cloud Function `resetWeeklyReview`.
