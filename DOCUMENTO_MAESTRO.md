@@ -1,5 +1,6 @@
 # DOCUMENTO MAESTRO DEL PRODUCTO
 ## ANCLA — Finanzas con Propósito
+### tuancla.com
 ### Una aplicación financiera basada en los 7 principios de "Volver a Empezar" de Carlos Sandoval
 
 ---
@@ -395,3 +396,11 @@ El libro cierra con una frase que resume el objetivo del producto mejor que cual
 *"No estás empezando desde cero. Estás empezando desde todo lo que aprendiste."*
 
 Esa es, literalmente, la experiencia que Ancla debe entregar en cada sesión.
+
+---
+
+## Anexo — Dominio y marca
+
+**Dominio oficial:** tuancla.com
+
+Elegido sobre alternativas evaluadas (ancla.app, ancla.pro, ancla.cloud, anclaapp.com.mx, anclaia.com) por: tono personal y cálido ("tu ancla", coherente con la voz en segunda persona del libro), mayor probabilidad de disponibilidad frente a ancla.com, independencia de un TLD específico para comunicar qué es el producto, y facilidad de recomendación boca a boca.

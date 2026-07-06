@@ -2,95 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    // Verdadero si `field` no cambió entre el documento anterior y el nuevo
-    // (o si nunca ha existido en ninguno de los dos). Se usa para proteger
-    // `plan` de que el propio cliente se lo escriba a sí mismo.
-    function unchanged(field) {
-      return (!(field in resource.data) && !(field in request.resource.data))
-        || (field in resource.data && field in request.resource.data && resource.data[field] == request.resource.data[field]);
-    }
-
+    // Documento principal del usuario: nombre, correo, pareja, racha, etc.
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      allow create: if isOwner(userId)
-        && request.resource.data.keys().hasOnly([
-             'name', 'email', 'createdAt', 'streak', 'reviewCompletedThisWeek',
-             'partner', 'dailyReminderEnabled', 'income', 'incomeFrequency',
-             'weeklySpent', 'weeklySpentWeekKey', 'plan', 'updatedAt'
-           ])
-        && request.resource.data.name is string
-        && request.resource.data.email is string
-        // 'plan' nunca se otorga en la creación de la cuenta desde el
-        // cliente — nace ausente (= "free"). Solo un backend de cobro
-        // (Cloud Function con Admin SDK, que no pasa por estas reglas)
-        // puede escribirlo más adelante.
-        && !('plan' in request.resource.data);
-
-      allow update: if isOwner(userId)
-        && request.resource.data.keys().hasOnly([
-             'name', 'email', 'createdAt', 'streak', 'reviewCompletedThisWeek',
-             'partner', 'dailyReminderEnabled', 'income', 'incomeFrequency',
-             'weeklySpent', 'weeklySpentWeekKey', 'plan', 'updatedAt'
-           ])
-        && (!('streak' in request.resource.data) || request.resource.data.streak is number)
-        && (!('reviewCompletedThisWeek' in request.resource.data) || request.resource.data.reviewCompletedThisWeek is bool)
-        && (!('dailyReminderEnabled' in request.resource.data) || request.resource.data.dailyReminderEnabled is bool)
-        && (!('income' in request.resource.data) || request.resource.data.income is number)
-        && (!('incomeFrequency' in request.resource.data) || request.resource.data.incomeFrequency in ['semanal', 'quincenal', 'mensual'])
-        && (!('weeklySpent' in request.resource.data) || request.resource.data.weeklySpent is number)
-        && (!('weeklySpentWeekKey' in request.resource.data) || request.resource.data.weeklySpentWeekKey is string)
-        && (!('partner' in request.resource.data) || request.resource.data.partner is map)
-        // Blindaje del paywall: mientras no exista un backend de cobro real,
-        // 'plan' no se puede modificar desde el cliente bajo ninguna
-        // circunstancia — ni para ponerlo ni para quitarlo.
-        && unchanged('plan');
-
-      // Deudas. 'person'/'talked' quedan permitidos solo por compatibilidad
-      // con documentos creados antes de retirar Conversaciones Pendientes —
-      // no se escriben en documentos nuevos, pero bloquearlos aquí rompería
-      // los abonos de deudas antiguas que aún los conserven. Ver
-      // ESPECIFICACION_TECNICA.md, sección 4.2 y deuda técnica.
-      match /debts/{docId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['name', 'original', 'remaining', 'payments', 'createdAt'])
-          && request.resource.data.name is string
-          && request.resource.data.original is number
-          && request.resource.data.remaining is number;
-        allow update: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['name', 'original', 'remaining', 'payments', 'createdAt', 'person', 'talked'])
-          && request.resource.data.remaining is number;
-        allow delete: if isOwner(userId);
-      }
-
-      match /goals/{docId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['person', 'why', 'target', 'saved', 'targetDate', 'createdAt'])
-          && request.resource.data.person is string
-          && request.resource.data.target is number;
-        allow update: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['person', 'why', 'target', 'saved', 'targetDate', 'createdAt'])
-          && request.resource.data.target is number;
-        allow delete: if isOwner(userId);
-      }
-
-      // El Diario Financiero es el dato más sensible de la app: se puede
-      // crear y borrar, pero nunca editar el contenido de una entrada ya
-      // guardada (evita manipulación retroactiva del propio historial
-      // emocional, algo que no tendría sentido de producto de todas formas).
-      match /diaryEntries/{docId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId)
-          && request.resource.data.keys().hasOnly(['mood', 'text', 'createdAt'])
-          && request.resource.data.mood in ['verguenza', 'miedo', 'alivio', 'orgullo'];
-        allow update: if false;
-        allow delete: if isOwner(userId);
+      // Subcolecciones: debts, goals, diaryEntries.
+      // Mismo dueño, mismas reglas — nadie más puede leer ni escribir aquí,
+      // ni siquiera otro usuario autenticado de la app.
+      match /{subcollection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
   }
