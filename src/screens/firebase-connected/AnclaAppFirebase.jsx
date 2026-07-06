@@ -26,12 +26,11 @@ import {
   Users,
   ShieldCheck,
   Activity,
-  Info,
-  Bell,
-  Pencil,
-  MoreHorizontal,
+  MessageCircle,
+  Copy,
+  CheckCircle2,
 } from "lucide-react";
-import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, runTransaction } from "firebase/firestore";
 import { db } from "../../firebase";
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { useUserCollection } from "../../hooks/useUserCollection";
@@ -81,28 +80,12 @@ const moods = [
   { key: "orgullo", label: "Orgullo tranquilo", color: "#C9973F" },
 ];
 const goalColors = ["#2F6F63", "#C9973F", "#7C7FA6", "#9E6B6B", "#5E9C8B"];
-const MORE_KEYS = ["health", "partner", "about"];
-const INCOME_FREQUENCIES = [
-  { key: "semanal", label: "Semanal", weeks: 1 },
-  { key: "quincenal", label: "Quincenal", weeks: 2 },
-  { key: "mensual", label: "Mensual", weeks: 4.345 },
-];
-// Identifica la semana en curso por el lunes correspondiente (YYYY-MM-DD),
-// para saber si "lo gastado esta semana" sigue vigente o ya hay que
-// empezar a contar de cero.
-function getWeekKey(date) {
-  const d = new Date(date);
-  const day = (d.getDay() + 6) % 7; // lunes = 0
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
 
 // --- Piezas reutilizables ----------------------------------------------------
-function GhostButton({ children, onClick, style }) {
+function GhostButton({ children, onClick, style, disabled }) {
   return (
-    <button onClick={onClick} className="px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:opacity-80 flex items-center gap-2 justify-center"
-      style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText, background: "transparent", ...style }}>
+    <button onClick={onClick} disabled={disabled} className="px-4 py-2.5 rounded-xl text-sm transition-all duration-200 hover:opacity-80 flex items-center gap-2 justify-center"
+      style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText, background: "transparent", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer", ...style }}>
       {children}
     </button>
   );
@@ -150,29 +133,6 @@ function SharedBadge() {
     </div>
   );
 }
-function AppFooter() {
-  return (
-    <div className="pt-5 mt-6" style={{ borderTop: `1px solid ${palette.paperLine}` }}>
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Proyecto</p>
-          <p className="text-xs" style={{ ...serif, color: palette.paperText }}>ANCLA</p>
-        </div>
-        <div className="text-center">
-          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Versión</p>
-          <p className="text-xs" style={{ ...mono, color: palette.paperText }}>MVP v1.0</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[9px] tracking-widest uppercase mb-1" style={{ ...sans, color: palette.ashPaper }}>Año</p>
-          <p className="text-xs" style={{ ...mono, color: palette.paperText }}>2026</p>
-        </div>
-      </div>
-      <p className="text-[10px] text-center leading-relaxed" style={{ ...sans, color: palette.ash }}>
-        Desarrollado con IA · © 2026 Carlos Sandoval
-      </p>
-    </div>
-  );
-}
 function LoadingScreen({ label }) {
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex items-center justify-center" style={{ maxWidth: 420, minHeight: 720, background: palette.ink }}>
@@ -184,7 +144,7 @@ function LoadingScreen({ label }) {
 // =============================================================================
 // AUTENTICACIÓN — pantallas (ahora contra Firebase Auth real)
 // =============================================================================
-function LoginScreen({ onGoSignup }) {
+function LoginScreen({ onGoSignup, onGoForgot }) {
   const { login, authError, setAuthError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -203,24 +163,72 @@ function LoginScreen({ onGoSignup }) {
           <span className="text-xs tracking-widest uppercase" style={{ ...sans, color: palette.ash }}>Ancla</span>
         </div>
         <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Bienvenido de vuelta</p>
-        <h1 className="text-2xl mb-3" style={{ ...serif, color: palette.inkText }}>Tu información es solo tuya.</h1>
-        <div className="rounded-xl p-4 mb-8" style={{ background: palette.inkSoft, border: `1px solid ${palette.inkLine}` }}>
-          <p className="text-xs mb-1.5" style={{ ...sans, color: palette.dawnSoft }}>
-            ANCLA <span style={{ color: palette.ash }}>—</span> Acepta, Nombra, Comprende, Libérate, Avanza.
-          </p>
-          <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.ash }}>
-            La app que te acompaña a dejar de huir de tus deudas y empezar de nuevo, con honestidad.
-          </p>
-        </div>
+        <h1 className="text-2xl mb-8" style={{ ...serif, color: palette.inkText }}>Tu información es solo tuya.</h1>
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
         <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
         {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
-        <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%", marginBottom: 16 }}>
+        <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%", marginBottom: 12 }}>
           {busy ? "Entrando..." : "Iniciar sesión"} {!busy && <ArrowRight size={16} />}
         </PrimaryButton>
+        <div className="flex items-center justify-center mb-4">
+          <button onClick={onGoForgot} className="text-xs underline" style={{ ...sans, color: palette.ash }}>¿Olvidaste tu contraseña?</button>
+        </div>
         <div className="flex items-center justify-center gap-1 mt-4">
           <span className="text-sm" style={{ ...sans, color: palette.ash }}>¿Aún no tienes cuenta?</span>
           <button onClick={onGoSignup} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>Crear una</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPasswordScreen({ onGoLogin }) {
+  const { resetPassword, authError, setAuthError } = useAuth();
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const submit = async () => {
+    if (!email) return setAuthError("Escribe tu correo primero.");
+    setBusy(true);
+    const ok = await resetPassword(email);
+    setBusy(false);
+    if (ok) setSent(true);
+  };
+
+  return (
+    <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
+      <div className="max-w-md mx-auto w-full">
+        <div className="flex items-center gap-2 mb-8">
+          <Moon size={16} color={palette.ash} />
+          <span className="text-xs tracking-widest uppercase" style={{ ...sans, color: palette.ash }}>Ancla</span>
+        </div>
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Recuperar acceso</p>
+        <h1 className="text-2xl mb-2" style={{ ...serif, color: palette.inkText }}>Esto también se puede reconstruir.</h1>
+        <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>
+          Escribe el correo con el que te registraste. Te enviamos un enlace para elegir una contraseña nueva.
+        </p>
+
+        {sent ? (
+          <div className="rounded-xl p-5 mb-6" style={{ background: palette.inkSoft, border: `1px solid ${palette.inkLine}` }}>
+            <p className="text-sm leading-relaxed" style={{ ...sans, color: palette.inkText }}>
+              Si ese correo tiene una cuenta con nosotros, ya te enviamos el enlace. Revisa también spam.
+            </p>
+          </div>
+        ) : (
+          <>
+            <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
+            {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
+            <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%", marginBottom: 16 }}>
+              {busy ? "Enviando..." : "Enviar enlace"} {!busy && <ArrowRight size={16} />}
+            </PrimaryButton>
+          </>
+        )}
+
+        <div className="flex items-center justify-center gap-1 mt-4">
+          <button onClick={onGoLogin} className="text-sm underline" style={{ ...sans, color: palette.dawnSoft }}>
+            <ArrowLeft size={12} className="inline mr-1" /> Volver a iniciar sesión
+          </button>
         </div>
       </div>
     </div>
@@ -270,7 +278,60 @@ function AuthGate({ children }) {
   if (currentUser) return children;
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)" }}>
-      {mode === "login" ? <LoginScreen onGoSignup={() => setMode("signup")} /> : <SignupScreen onGoLogin={() => setMode("login")} />}
+      {mode === "login" && <LoginScreen onGoSignup={() => setMode("signup")} onGoForgot={() => setMode("forgot")} />}
+      {mode === "signup" && <SignupScreen onGoLogin={() => setMode("login")} />}
+      {mode === "forgot" && <ForgotPasswordScreen onGoLogin={() => setMode("login")} />}
+    </div>
+  );
+}
+
+// Recordatorio de verificación de correo — deliberadamente NO bloquea el
+// uso de la app (forzar verificación antes de dejar entrar a alguien que
+// está en crisis financiera contradice el tono "sin fricción" de ANCLA).
+// Se puede posponer; solo se le recuerda una vez por sesión.
+function VerifyEmailScreen({ onContinue }) {
+  const { currentUser, resendVerification, refreshUser } = useAuth();
+  const [sent, setSent] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  const resend = async () => {
+    const ok = await resendVerification();
+    if (ok) setSent(true);
+  };
+
+  const checkNow = async () => {
+    setChecking(true);
+    await refreshUser();
+    setChecking(false);
+  };
+
+  return (
+    <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
+      <div className="max-w-md mx-auto w-full text-center">
+        <Mail size={28} color={palette.dawnSoft} className="mx-auto mb-6" />
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Un paso más</p>
+        <h1 className="text-2xl mb-3" style={{ ...serif, color: palette.inkText }}>Confirma que este correo es tuyo.</h1>
+        <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: "#C7CAD4" }}>
+          Te enviamos un enlace a <strong>{currentUser?.email}</strong>. Ábrelo cuando puedas — no necesitas
+          hacerlo ahora mismo para seguir usando Ancla.
+        </p>
+
+        {sent && (
+          <p className="text-xs mb-4" style={{ ...sans, color: palette.dawnSoft }}>Reenviado. Revisa también spam.</p>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <PrimaryButton onClick={checkNow} disabled={checking} style={{ width: "100%" }}>
+            {checking ? "Revisando..." : "Ya lo verifiqué"} {!checking && <Check size={16} />}
+          </PrimaryButton>
+          <GhostButton onClick={resend} style={{ color: palette.inkText, borderColor: palette.ash }}>
+            Reenviar correo
+          </GhostButton>
+          <GhostButton onClick={onContinue} style={{ color: palette.ash, borderColor: "transparent" }}>
+            Continuar por ahora
+          </GhostButton>
+        </div>
+      </div>
     </div>
   );
 }
@@ -329,7 +390,7 @@ function DebtCapture({ localDebts, setLocalDebts, onDone, onPauseForToday, savin
   const addDebt = () => {
     if (!name || !amount) return;
     const val = parseFloat(amount) || 0;
-    setLocalDebts([...localDebts, { tempId: Date.now(), name, original: val, remaining: val }]);
+    setLocalDebts([...localDebts, { tempId: Date.now(), name, original: val, remaining: val, person: true, talked: false }]);
     setName(""); setAmount(""); setStage("who");
   };
   const removeDebt = (tempId) => setLocalDebts(localDebts.filter((d) => d.tempId !== tempId));
@@ -425,40 +486,9 @@ function RealityReveal({ localDebts, onContinue, saving }) {
 // =============================================================================
 // PANTALLAS PRINCIPALES (leen y escriben en Firestore vía props)
 // =============================================================================
-function IncomeForm({ initialAmount, initialFrequency, onSave, onCancel }) {
-  const [amount, setAmount] = useState(initialAmount ? String(initialAmount) : "");
-  const [frequency, setFrequency] = useState(initialFrequency || "quincenal");
-  const submit = () => { const val = parseFloat(amount) || 0; if (val <= 0) return; onSave(val, frequency); };
-  return (
-    <div className="rounded-xl p-5" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-      <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>¿Cuánto ingresas, y cada cuánto?</p>
-      <p className="text-[10px] mb-4 leading-relaxed" style={{ ...sans, color: palette.ash }}>Esto se queda solo entre tú y tu cuenta.</p>
-      <div className="flex items-center gap-2 mb-4">
-        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
-        <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      </div>
-      <div className="flex gap-2 mb-5">
-        {INCOME_FREQUENCIES.map((f) => (
-          <button key={f.key} onClick={() => setFrequency(f.key)} className="flex-1 py-2 rounded-lg text-xs transition-all duration-200"
-            style={{ ...sans, background: frequency === f.key ? palette.pine : "transparent", color: frequency === f.key ? "#fff" : palette.paperText, border: `1px solid ${frequency === f.key ? palette.pine : palette.paperLine}` }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        {onCancel && <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>}
-        <PrimaryButton onClick={submit} disabled={!amount} style={{ flex: 1 }}>Guardar <Check size={16} /></PrimaryButton>
-      </div>
-    </div>
-  );
-}
-function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFrequency, onSetIncome, weeklySpent, weeklySpentWeekKey }) {
-  const [editingIncome, setEditingIncome] = useState(false);
+function TruthPanel({ debts, streak, onGoRadar, name, shared }) {
   const total = debts.reduce((s, d) => s + d.remaining, 0);
-  const freq = INCOME_FREQUENCIES.find((f) => f.key === incomeFrequency) || INCOME_FREQUENCIES[1];
-  const spentThisWeek = weeklySpentWeekKey === getWeekKey(new Date()) ? (weeklySpent || 0) : 0;
-  const weeklyAvailable = income ? Math.round(income / freq.weeks) - spentThisWeek : null;
+  const weeklyAvailable = 1450;
   const smallest = debts.filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining)[0];
   return (
     <div className="p-6">
@@ -470,28 +500,10 @@ function TruthPanel({ debts, streak, onGoRadar, name, shared, income, incomeFreq
           <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Esto debes hoy</p>
           <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${total.toLocaleString()}</p>
         </div>
-        {editingIncome ? (
-          <IncomeForm
-            initialAmount={income}
-            initialFrequency={incomeFrequency}
-            onCancel={() => setEditingIncome(false)}
-            onSave={(amt, freqKey) => { onSetIncome(amt, freqKey); setEditingIncome(false); }}
-          />
-        ) : weeklyAvailable !== null ? (
-          <button onClick={() => setEditingIncome(true)} className="w-full rounded-xl p-5 text-left" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
-              <Pencil size={12} color={palette.ash} />
-            </div>
-            <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${weeklyAvailable.toLocaleString()}</p>
-            {spentThisWeek > 0 && <p className="text-[10px] mt-1" style={{ ...sans, color: palette.ash }}>Ya abonaste ${spentThisWeek.toLocaleString()} esta semana</p>}
-          </button>
-        ) : (
-          <button onClick={() => setEditingIncome(true)} className="w-full rounded-xl p-5 text-left" style={{ background: palette.paperCard, border: `1px dashed ${palette.paperLine}` }}>
-            <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
-            <p className="text-sm flex items-center gap-1.5" style={{ ...sans, color: palette.pine }}><Plus size={13} /> Agrega tu ingreso para verlo</p>
-          </button>
-        )}
+        <div className="rounded-xl p-5" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+          <p className="text-xs mb-1" style={{ ...sans, color: palette.ashPaper }}>Disponible esta semana</p>
+          <p className="text-2xl" style={{ ...mono, color: palette.paperText }}>${weeklyAvailable.toLocaleString()}</p>
+        </div>
         <div className="rounded-xl p-5 flex items-center justify-between" style={{ background: palette.pine }}>
           <div>
             <p className="text-xs mb-1" style={{ ...sans, color: "#DCEAE6" }}>Racha de honestidad</p>
@@ -525,10 +537,9 @@ function CelebrationModal({ debtName, onClose }) {
     </div>
   );
 }
-function DebtRow({ debt, isTarget, onPay, onDelete }) {
+function DebtRow({ debt, isTarget, onPay }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const pct = Math.max(0, Math.min(100, ((debt.original - debt.remaining) / debt.original) * 100));
   const liquidated = debt.remaining <= 0;
   return (
@@ -539,88 +550,31 @@ function DebtRow({ debt, isTarget, onPay, onDelete }) {
           <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{debt.name}</p>
         </div>
         {liquidated ? (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={12} /> Liquidada</span>
-            {onDelete && <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar deuda liquidada"><Trash2 size={14} color={palette.ash} /></button>}
-          </div>
+          <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={12} /> Liquidada</span>
         ) : (
           <span className="text-sm" style={{ ...mono, color: palette.paperText }}>${debt.remaining.toLocaleString()}</span>
         )}
       </div>
-      {confirmDelete ? (
-        <div className="rounded-lg p-3" style={{ background: palette.paper, border: `1px solid ${palette.errorText}` }}>
-          <p className="text-xs mb-3" style={{ ...sans, color: palette.paperText }}>¿Eliminar "{debt.name}" de tu historial? No se puede deshacer.</p>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmDelete(false)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText }}>Cancelar</button>
-            <button onClick={() => onDelete(debt.id)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, background: palette.errorText, color: "#fff" }}>Eliminar</button>
+      <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: palette.paperDim }}>
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: liquidated ? palette.pine : `linear-gradient(90deg, ${palette.pineDeep}, ${palette.pine})` }} />
+      </div>
+      {!liquidated && (
+        !open ? (
+          <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Abonar</button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
+            <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+            <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onPay(debt, val); setAmount(""); setOpen(false); }}
+              className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px]" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}% pagado</span>
-          </div>
-          <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: palette.paperDim }}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: liquidated ? palette.pine : `linear-gradient(90deg, ${palette.pineDeep}, ${palette.pine})` }} />
-          </div>
-          {debt.payments && debt.payments.length > 0 && (
-            <div className="mb-3 rounded-lg p-2.5" style={{ background: palette.paper }}>
-              {[...debt.payments].reverse().map((p, i) => (
-                <div key={i} className="flex items-center justify-between py-0.5">
-                  <span className="text-[10px]" style={{ ...sans, color: palette.ash }}>
-                    {p.date ? new Date(p.date).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                  </span>
-                  <span className="text-[10px]" style={{ ...mono, color: palette.pineDeep }}>+${p.amount.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {!liquidated && (
-            !open ? (
-              <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Abonar</button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
-                <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-                <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onPay(debt, val); setAmount(""); setOpen(false); }}
-                  className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
-              </div>
-            )
-          )}
-        </>
+        )
       )}
     </div>
   );
 }
-function AddDebtForm({ onAdd, onCancel }) {
-  const [name, setName] = useState("");
-  const [original, setOriginal] = useState("");
-  const submit = async () => {
-    if (!name || !original) return;
-    const amount = parseFloat(original) || 0;
-    await onAdd({ name, original: amount, remaining: amount });
-  };
-  return (
-    <PaperCard>
-      <h3 className="text-lg mb-1" style={{ ...serif, color: palette.paperText }}>Cuando estés listo, aquí queda.</h3>
-      <p className="text-xs mb-4 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>No pasa nada si esta no estaba en tu inventario original.</p>
-      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Tarjeta de crédito, préstamo de mi hermano..."
-        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <div className="flex items-center gap-2 mb-5">
-        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
-        <input type="number" value={original} onChange={(e) => setOriginal(e.target.value)} placeholder="Monto total"
-          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      </div>
-      <div className="flex gap-3">
-        <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
-        <PrimaryButton onClick={submit} disabled={!name || !original} style={{ flex: 1 }}>Agregar deuda <Check size={16} /></PrimaryButton>
-      </div>
-    </PaperCard>
-  );
-}
-function DebtRadar({ debts, onPay, onAddDebt, onDeleteDebt, shared }) {
-  const [showForm, setShowForm] = useState(false);
+function DebtRadar({ debts, onPay, shared }) {
   const active = [...debts].filter((d) => d.remaining > 0).sort((a, b) => a.remaining - b.remaining);
   const done = debts.filter((d) => d.remaining <= 0);
   const targetId = active[0]?.id;
@@ -638,19 +592,9 @@ function DebtRadar({ debts, onPay, onAddDebt, onDeleteDebt, shared }) {
       {done.length > 0 && (
         <>
           <p className="text-xs uppercase tracking-widest mt-6 mb-3" style={{ ...sans, color: palette.ashPaper }}>Ya liquidadas</p>
-          {done.map((d) => <DebtRow key={d.id} debt={d} isTarget={false} onPay={onPay} onDelete={onDeleteDebt} />)}
+          {done.map((d) => <DebtRow key={d.id} debt={d} isTarget={false} onPay={onPay} />)}
         </>
       )}
-      <div className="mt-6">
-        {showForm ? (
-          <AddDebtForm onAdd={async (d) => { await onAddDebt(d); setShowForm(false); }} onCancel={() => setShowForm(false)} />
-        ) : (
-          <button onClick={() => setShowForm(true)} className="w-full rounded-xl p-4 flex items-center justify-center gap-2 text-sm transition-all duration-200"
-            style={{ ...sans, border: `1px dashed ${palette.paperLine}`, color: palette.pine }}>
-            <Plus size={16} /> Agregar una deuda
-          </button>
-        )}
-      </div>
     </div>
   );
 }
@@ -677,15 +621,9 @@ function DiaryScreen({ entries, onAddEntry }) {
         <div className="mt-8">
           {[...entries].reverse().map((e) => {
             const m = moods.find((mm) => mm.key === e.mood);
-            const entryDate = e.createdAt?.toDate ? e.createdAt.toDate() : null;
             return (
               <div key={e.id} className="rounded-xl p-4 mb-2" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs px-2 py-1 rounded-full" style={{ ...sans, background: m?.color, color: "#fff" }}>{m?.label}</span>
-                  <span className="text-[10px]" style={{ ...mono, color: palette.ash }}>
-                    {entryDate ? entryDate.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "Justo ahora"}
-                  </span>
-                </div>
+                <span className="text-xs px-2 py-1 rounded-full" style={{ ...sans, background: m?.color, color: "#fff" }}>{m?.label}</span>
                 {e.text && <p className="text-sm mt-2" style={{ ...sans, color: palette.paperText }}>{e.text}</p>}
               </div>
             );
@@ -730,56 +668,23 @@ function WeeklyReview({ onComplete, completed }) {
     </div>
   );
 }
-function AboutScreen() {
-  return (
-    <div className="p-6">
-      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Acerca de</p>
-      <h2 className="text-2xl mb-6" style={{ ...serif, color: palette.paperText }}>Quién está detrás de ANCLA.</h2>
-      <div className="rounded-2xl p-6 mb-4 flex flex-col items-center text-center" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-        <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ background: palette.dawn }}>
-          <span style={{ ...serif, color: palette.ink }} className="text-xl">CS</span>
-        </div>
-        <h3 className="text-lg mb-1" style={{ ...serif, color: palette.paperText }}>Carlos Sandoval</h3>
-        <p className="text-xs mb-4" style={{ ...sans, color: palette.ashPaper }}>Escritor · Autor de "Volver a Empezar"</p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Fundador de ANCLA</span>
-          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Autor publicado</span>
-          <span className="text-[10px] px-2.5 py-1 rounded-full" style={{ ...sans, background: palette.pineSoft, color: palette.pineDeep }}>Desarrollado con IA</span>
-        </div>
-      </div>
-      <div className="rounded-xl p-4 mb-4" style={{ background: palette.paper, border: `1px solid ${palette.dawn}`, borderLeftWidth: 3 }}>
-        <p className="text-sm italic leading-relaxed" style={{ ...serif, color: palette.paperText }}>
-          "Si con una sola frase puedo tocar un corazón y acercarlo más a Dios, entonces estoy cumpliendo mi llamado."
-        </p>
-      </div>
-      <div className="rounded-xl p-4 mb-4 flex items-center gap-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-        <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: palette.pineDeep }}>
-          <BookOpen size={18} color="#fff" />
-        </div>
-        <div>
-          <p className="text-sm" style={{ ...serif, color: palette.paperText }}>Volver a Empezar</p>
-          <p className="text-xs mb-1.5 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>Cómo salir de las deudas, recuperar tu propósito y convertirte en la persona que tu familia necesita.</p>
-          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ ...sans, background: palette.paperDim, color: palette.ashPaper }}>Libro publicado · PDF digital</span>
-        </div>
-      </div>
-      <div className="rounded-xl p-4 mb-4" style={{ background: palette.pineSoft }}>
-        <p className="text-[10px] tracking-widest uppercase mb-2 flex items-center gap-1.5" style={{ ...sans, color: palette.pineDeep }}>
-          <Info size={12} /> Sobre ANCLA
-        </p>
-        <p className="text-xs leading-relaxed" style={{ ...sans, color: palette.pineDeep }}>
-          ANCLA — Acepta, Nombra, Comprende, Libérate, Avanza. La app que te acompaña a dejar de huir de tus deudas y empezar de nuevo, con honestidad, construida a partir de "Volver a Empezar" — un sistema pensado para el momento antes de estar listo para organizarte: la evitación, la vergüenza, el no querer ver el estado de cuenta.
-        </p>
-      </div>
-      <AppFooter />
-    </div>
-  );
-}
-function AccountScreen({ userDoc }) {
-  const { currentUser, logout } = useAuth();
+function AccountScreen() {
+  const { currentUser, logout, resendVerification, refreshUser } = useAuth();
   const displayName = currentUser?.displayName || "Tú";
   const initial = displayName.charAt(0).toUpperCase();
-  const reminderOn = !!userDoc?.data?.dailyReminderEnabled;
-  const toggleReminder = () => userDoc?.update({ dailyReminderEnabled: !reminderOn });
+  const [resent, setResent] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  const handleResend = async () => {
+    const ok = await resendVerification();
+    if (ok) setResent(true);
+  };
+
+  const handleCheck = async () => {
+    setChecking(true);
+    await refreshUser();
+    setChecking(false);
+  };
 
   return (
     <div className="p-6">
@@ -794,17 +699,28 @@ function AccountScreen({ userDoc }) {
           <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{currentUser?.email}</p>
         </div>
       </div>
+
+      {!currentUser?.emailVerified && (
+        <div className="rounded-xl p-4 mb-4" style={{ background: "#FBF0E4", border: `1px solid ${palette.dawn}` }}>
+          <p className="text-xs leading-relaxed mb-3" style={{ ...sans, color: "#8A6A2E" }}>
+            Aún no confirmas que este correo es tuyo. {resent && "Te reenviamos el enlace — revisa spam."}
+          </p>
+          <div className="flex gap-2">
+            <GhostButton onClick={handleResend} style={{ flex: 1, color: "#8A6A2E", borderColor: palette.dawn, padding: "8px" }}>
+              Reenviar enlace
+            </GhostButton>
+            <GhostButton onClick={handleCheck} disabled={checking} style={{ flex: 1, color: "#8A6A2E", borderColor: palette.dawn, padding: "8px" }}>
+              {checking ? "Revisando..." : "Ya lo hice"}
+            </GhostButton>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl p-4 mb-6" style={{ background: palette.pineSoft }}>
         <p className="text-xs leading-relaxed flex items-center gap-1.5" style={{ ...sans, color: palette.pineDeep }}>
           <ShieldCheck size={13} /> Tus datos ya están guardados en tu cuenta — persisten entre dispositivos.
         </p>
       </div>
-      <SharingToggle
-        label="Recordatorio diario"
-        description="Un aviso suave cada día para volver a tu Panel de Verdad. Nunca es una alarma."
-        checked={reminderOn}
-        onChange={toggleReminder}
-      />
       <GhostButton onClick={logout} style={{ width: "100%", color: palette.errorText, borderColor: palette.errorText }}><LogOut size={14} /> Cerrar sesión</GhostButton>
     </div>
   );
@@ -813,25 +729,16 @@ function AddGoalForm({ onAdd, onCancel }) {
   const [person, setPerson] = useState("");
   const [why, setWhy] = useState("");
   const [target, setTarget] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-  const submit = async () => { if (!person || !target) return; await onAdd({ person, why, target: parseFloat(target) || 0, saved: 0, targetDate: targetDate || null }); };
+  const submit = async () => { if (!person || !target) return; await onAdd({ person, why, target: parseFloat(target) || 0, saved: 0 }); };
   return (
     <PaperCard>
       <h3 className="text-lg mb-4" style={{ ...serif, color: palette.paperText }}>¿Para quién es esta meta?</h3>
       <input autoFocus value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Ej: Mis hijos..."
         className="w-full px-4 py-3 rounded-lg text-sm mb-4 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-5">
         <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
         <input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Monto meta"
           className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      </div>
-      <div className="mb-5">
-        <p className="text-xs mb-1.5" style={{ ...sans, color: palette.ashPaper }}>¿Para cuándo? (opcional)</p>
-        <div className="flex items-center gap-2 px-4 py-3 rounded-lg" style={{ background: "#FFFFFF", border: `1px solid ${palette.paperLine}` }}>
-          <Calendar size={15} color={palette.ash} />
-          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
-            className="flex-1 outline-none bg-transparent text-sm" style={{ ...sans, color: palette.paperText }} />
-        </div>
       </div>
       <div className="flex gap-3">
         <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
@@ -840,54 +747,12 @@ function AddGoalForm({ onAdd, onCancel }) {
     </PaperCard>
   );
 }
-function EditGoalForm({ goal, onSave, onCancel }) {
-  const [person, setPerson] = useState(goal.person);
-  const [why, setWhy] = useState(goal.why || "");
-  const [target, setTarget] = useState(String(goal.target));
-  const [targetDate, setTargetDate] = useState(goal.targetDate || "");
-  const submit = () => { if (!person || !target) return; onSave({ person, why, target: parseFloat(target) || 0, targetDate: targetDate || null }); };
-  return (
-    <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
-      <input autoFocus value={person} onChange={(e) => setPerson(e.target.value)} placeholder="¿Para quién?"
-        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="¿Por qué? (opcional)"
-        className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none" style={{ ...sans, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      <div className="flex items-center gap-2 mb-3">
-        <span style={{ ...mono, color: palette.paperText }} className="text-lg">$</span>
-        <input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Monto meta"
-          className="w-full px-4 py-3 rounded-lg text-lg outline-none" style={{ ...mono, background: "#FFFFFF", border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-      </div>
-      <div className="flex items-center gap-2 px-4 py-3 rounded-lg mb-4" style={{ background: "#FFFFFF", border: `1px solid ${palette.paperLine}` }}>
-        <Calendar size={15} color={palette.ash} />
-        <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
-          className="flex-1 outline-none bg-transparent text-sm" style={{ ...sans, color: palette.paperText }} />
-      </div>
-      <div className="flex gap-3">
-        <GhostButton onClick={onCancel} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cancelar</GhostButton>
-        <PrimaryButton onClick={submit} disabled={!person || !target} style={{ flex: 1 }}>Guardar cambios <Check size={16} /></PrimaryButton>
-      </div>
-    </div>
-  );
-}
-function GoalCard({ goal, index, onContribute, onUpdateGoal, onDeleteGoal }) {
+function GoalCard({ goal, index, onContribute }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const pct = Math.min(100, (goal.saved / goal.target) * 100);
   const color = goalColors[index % goalColors.length];
   const complete = goal.saved >= goal.target;
-
-  if (editing) {
-    return (
-      <EditGoalForm
-        goal={goal}
-        onCancel={() => setEditing(false)}
-        onSave={async (updates) => { await onUpdateGoal(goal.id, updates); setEditing(false); }}
-      />
-    );
-  }
-
   return (
     <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
       <div className="flex items-start gap-3 mb-3">
@@ -895,62 +760,40 @@ function GoalCard({ goal, index, onContribute, onUpdateGoal, onDeleteGoal }) {
         <div className="flex-1">
           <p className="text-base" style={{ ...serif, color: palette.paperText }}>{goal.person}</p>
           {goal.why && <p className="text-xs mt-0.5" style={{ ...sans, color: palette.ashPaper }}>{goal.why}</p>}
-          {goal.targetDate && !complete && (
-            <p className="text-[10px] mt-1 flex items-center gap-1" style={{ ...sans, color: palette.ash }}>
-              <Calendar size={10} /> Para el {new Date(goal.targetDate + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
-            </p>
-          )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
-          <button onClick={() => setEditing(true)} aria-label="Editar meta"><Pencil size={14} color={palette.ash} /></button>
-          <button onClick={() => setConfirmDelete(true)} aria-label="Eliminar meta"><Trash2 size={14} color={palette.ash} /></button>
-        </div>
+        {complete && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><Check size={11} /> Lograda</span>}
       </div>
-
-      {confirmDelete ? (
-        <div className="rounded-lg p-3 mb-1" style={{ background: palette.paper, border: `1px solid ${palette.errorText}` }}>
-          <p className="text-xs mb-3" style={{ ...sans, color: palette.paperText }}>¿Eliminar esta meta? No se puede deshacer.</p>
-          <div className="flex gap-2">
-            <button onClick={() => setConfirmDelete(false)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, border: `1px solid ${palette.paperLine}`, color: palette.paperText }}>Cancelar</button>
-            <button onClick={() => onDeleteGoal(goal.id)} className="flex-1 text-xs py-2 rounded-lg" style={{ ...sans, background: palette.errorText, color: "#fff" }}>Eliminar</button>
+      <div className="w-full h-2 rounded-full overflow-hidden mb-2" style={{ background: palette.paperDim }}>
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs" style={{ ...mono, color: palette.ashPaper }}>${goal.saved.toLocaleString()} de ${goal.target.toLocaleString()}</span>
+        <span className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}%</span>
+      </div>
+      {!complete && (
+        !open ? (
+          <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Aportar</button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
+            <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
+              className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+            <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onContribute(goal, val); setAmount(""); setOpen(false); }}
+              className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="w-full h-2 rounded-full overflow-hidden mb-2" style={{ background: palette.paperDim }}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
-          </div>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs" style={{ ...mono, color: palette.ashPaper }}>${goal.saved.toLocaleString()} de ${goal.target.toLocaleString()}</span>
-            <span className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{pct.toFixed(0)}%</span>
-          </div>
-          {!complete && (
-            !open ? (
-              <button onClick={() => setOpen(true)} className="text-xs px-3 py-2 rounded-lg" style={{ ...sans, color: palette.pine, border: `1px solid ${palette.pine}` }}>Aportar</button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span style={{ ...mono, color: palette.paperText }} className="text-sm">$</span>
-                <input autoFocus type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00"
-                  className="flex-1 px-3 py-2 rounded-lg text-sm outline-none" style={{ ...mono, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
-                <button onClick={() => { const val = parseFloat(amount) || 0; if (val > 0) onContribute(goal, val); setAmount(""); setOpen(false); }}
-                  className="text-xs px-3 py-2.5 rounded-lg" style={{ ...sans, background: palette.pine, color: "#fff" }}>Guardar</button>
-              </div>
-            )
-          )}
-        </>
+        )
       )}
     </div>
   );
 }
-function PurposeScreen({ goals, onAddGoal, onContribute, onUpdateGoal, onDeleteGoal, shared }) {
+function PurposeScreen({ goals, onAddGoal, onContribute, shared }) {
   const [showForm, setShowForm] = useState(false);
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Propósito</p>
       <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>¿Para quién estás haciendo esto?</h2>
       {shared && <SharedBadge />}
-      {goals.map((g, i) => <GoalCard key={g.id} goal={g} index={i} onContribute={onContribute} onUpdateGoal={onUpdateGoal} onDeleteGoal={onDeleteGoal} />)}
+      {goals.map((g, i) => <GoalCard key={g.id} goal={g} index={i} onContribute={onContribute} />)}
       {showForm ? (
         <AddGoalForm onAdd={async (g) => { await onAddGoal(g); setShowForm(false); }} onCancel={() => setShowForm(false)} />
       ) : (
@@ -1027,30 +870,6 @@ function ConnectedPartner({ partner, onToggle, onDisconnect }) {
     </>
   );
 }
-function PartnerPaywall({ onUnlockDemo }) {
-  return (
-    <div className="p-6">
-      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.dawn }}>Ancla Plus</p>
-      <h2 className="text-2xl mb-2" style={{ ...serif, color: palette.paperText }}>Reconstruir en pareja.</h2>
-      <p className="text-sm mb-6 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>
-        El Modo Compartido es parte de Ancla Plus. Tu Nivel 1 — inventario, radar de deudas, hábito ancla, panel de verdad — es y será siempre gratis.
-      </p>
-      <div className="rounded-2xl p-6 mb-5 text-center" style={{ background: palette.ink }}>
-        <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: palette.dawn }}>
-          <Lock size={20} color={palette.ink} />
-        </div>
-        <p className="text-sm mb-1" style={{ ...serif, color: palette.inkText }}>Comparte tu reconstrucción</p>
-        <p className="text-xs mb-5 leading-relaxed" style={{ ...sans, color: palette.ash }}>
-          Invita a tu pareja y decide, módulo por módulo, qué ve. El Diario Financiero permanece privado por defecto.
-        </p>
-        <PrimaryButton onClick={onUnlockDemo} style={{ width: "100%" }}>Ver planes de Ancla Plus <ArrowRight size={16} /></PrimaryButton>
-      </div>
-      <p className="text-[10px] text-center leading-relaxed" style={{ ...sans, color: palette.ash }}>
-        Nota de desarrollo: todavía no hay cobro real conectado (Stripe/RevenueCat). Este botón es un marcador de posición para poder seguir construyendo y probando el resto de Ancla Plus.
-      </p>
-    </div>
-  );
-}
 function PartnerScreen({ partner, updatePartner }) {
   const sendInvite = (n, e) => updatePartner({ status: "pending", name: n, email: e });
   const cancelInvite = () => updatePartner({ status: "none", name: "", email: "" });
@@ -1125,54 +944,91 @@ function HealthScoreScreen({ debts, streak }) {
   );
 }
 
+// --- Conversaciones Pendientes -----------------------------------------------
+function buildTemplate(debt) {
+  return `Hola. Quería hablarte de lo que te debo — los $${debt.remaining.toLocaleString()} de ${debt.name.toLowerCase()}. No he podido pagarte como prometí, y quiero ser honesto contigo en vez de seguir evitándolo. ¿Podemos hablarlo?`;
+}
+function ConversationCard({ debt, onToggleTalked }) {
+  const [showTemplate, setShowTemplate] = useState(false);
+  const [text, setText] = useState(buildTemplate(debt));
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) { setCopied(false); }
+  };
+  return (
+    <div className="rounded-xl p-5 mb-3" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <p className="text-sm" style={{ ...sans, color: palette.paperText }}>{debt.name}</p>
+          <p className="text-xs mt-0.5" style={{ ...mono, color: palette.ashPaper }}>${debt.remaining.toLocaleString()} pendientes</p>
+        </div>
+        {debt.talked ? (
+          <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{ background: palette.pineSoft, color: palette.pineDeep, ...sans }}><CheckCircle2 size={11} /> Ya hablado</span>
+        ) : (
+          <span className="text-xs px-2 py-1 rounded-full" style={{ background: palette.paperDim, color: palette.ashPaper, ...sans }}>Pendiente</span>
+        )}
+      </div>
+      {!showTemplate ? (
+        <div className="flex gap-2">
+          <GhostButton onClick={() => setShowTemplate(true)} style={{ flex: 1, color: palette.pine, borderColor: palette.pine }}><MessageCircle size={14} /> Ver plantilla</GhostButton>
+          <GhostButton onClick={() => onToggleTalked(debt)} style={{ flex: 1, color: debt.talked ? palette.ashPaper : palette.pineDeep, borderColor: palette.paperLine }}>
+            {debt.talked ? "Marcar pendiente" : "Ya hablé con él/ella"}
+          </GhostButton>
+        </div>
+      ) : (
+        <>
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5}
+            className="w-full px-4 py-3 rounded-lg text-sm mb-3 outline-none resize-none" style={{ ...sans, background: palette.paper, border: `1px solid ${palette.paperLine}`, color: palette.paperText }} />
+          <div className="flex gap-2">
+            <GhostButton onClick={() => setShowTemplate(false)} style={{ color: palette.paperText, borderColor: palette.paperLine }}>Cerrar</GhostButton>
+            <PrimaryButton onClick={copy} style={{ flex: 1 }}><Copy size={14} /> {copied ? "¡Copiado!" : "Copiar mensaje"}</PrimaryButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+function ConversationsScreen({ debts, onToggleTalked }) {
+  const personDebts = debts.filter((d) => d.person && d.remaining > 0);
+  const pending = personDebts.filter((d) => !d.talked);
+  const talked = personDebts.filter((d) => d.talked);
+  return (
+    <div className="p-6">
+      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Conversaciones Pendientes</p>
+      <h2 className="text-2xl mb-5" style={{ ...serif, color: palette.paperText }}>Las que no querías tener.</h2>
+      {personDebts.length === 0 && (
+        <div className="rounded-xl p-6 text-center" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+          <p className="text-sm" style={{ ...sans, color: palette.ashPaper }}>No tienes deudas con personas registradas todavía.</p>
+        </div>
+      )}
+      {pending.map((d) => <ConversationCard key={d.id} debt={d} onToggleTalked={onToggleTalked} />)}
+      {talked.length > 0 && (
+        <>
+          <p className="text-xs uppercase tracking-widest mt-6 mb-3" style={{ ...sans, color: palette.ashPaper }}>Ya habladas</p>
+          {talked.map((d) => <ConversationCard key={d.id} debt={d} onToggleTalked={onToggleTalked} />)}
+        </>
+      )}
+    </div>
+  );
+}
+
 // =============================================================================
 // NAVEGACIÓN INFERIOR
 // =============================================================================
-function MoreMenu({ onSelect, onClose }) {
-  const items = [
-    { key: "health", label: "Salud financiera", icon: Activity, desc: "Tu score propio: claridad, constancia, progreso." },
-    { key: "partner", label: "Pareja", icon: Users, desc: "Modo compartido con quien tú decidas.", plus: true },
-    { key: "about", label: "Acerca de", icon: Info, desc: "Sobre ANCLA y el libro que le dio origen." },
-  ];
-  return (
-    <>
-      <div className="absolute inset-0 z-40" style={{ background: "rgba(20,23,31,0.45)" }} onClick={onClose} />
-      <div className="absolute bottom-0 inset-x-0 z-50 rounded-t-2xl p-3 pb-5" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
-        <div className="w-10 h-1 rounded-full mx-auto mb-3" style={{ background: palette.paperLine }} />
-        {items.map((it) => {
-          const Icon = it.icon;
-          return (
-            <button key={it.key} onClick={() => onSelect(it.key)}
-              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all duration-200 hover:opacity-80">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: palette.pineSoft }}>
-                <Icon size={16} color={palette.pineDeep} />
-              </div>
-              <div>
-                <p className="text-sm flex items-center gap-1.5" style={{ ...sans, color: palette.paperText }}>
-                  {it.label}
-                  {it.plus && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ ...sans, background: palette.dawnSoft, color: palette.ink }}>Plus</span>}
-                </p>
-                <p className="text-xs" style={{ ...sans, color: palette.ashPaper }}>{it.desc}</p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-function BottomNav({ tab, setTab, onOpenMore }) {
+function BottomNav({ tab, setTab }) {
   const items = [
     { key: "home", label: "Inicio", icon: Home },
     { key: "radar", label: "Deudas", icon: Compass },
+    { key: "conversations", label: "Conversa", icon: MessageCircle },
     { key: "purpose", label: "Propósito", icon: Heart },
+    { key: "health", label: "Salud", icon: Activity },
+    { key: "partner", label: "Pareja", icon: Users },
     { key: "diary", label: "Diario", icon: BookOpen },
     { key: "review", label: "Revisión", icon: Calendar },
     { key: "account", label: "Cuenta", icon: User },
   ];
-  const moreActive = MORE_KEYS.includes(tab);
   return (
-    <div className="flex items-center justify-center gap-1 py-3 px-2 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
+    <div className="flex items-center gap-1 py-3 px-2 overflow-x-auto" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
       {items.map((it) => {
         const Icon = it.icon;
         const active = tab === it.key;
@@ -1183,10 +1039,6 @@ function BottomNav({ tab, setTab, onOpenMore }) {
           </button>
         );
       })}
-      <button onClick={onOpenMore} className="flex flex-col items-center gap-1 px-2 py-1 flex-shrink-0">
-        <MoreHorizontal size={15} color={moreActive ? palette.pine : palette.ash} />
-        <span className="text-[7.5px] whitespace-nowrap" style={{ ...sans, color: moreActive ? palette.pine : palette.ash }}>Más</span>
-      </button>
     </div>
   );
 }
@@ -1203,10 +1055,10 @@ function MainApp() {
 
   const [onboardPhase, setOnboardPhase] = useState("checking");
   const [tab, setTab] = useState("home");
-  const [moreOpen, setMoreOpen] = useState(false);
   const [localDebts, setLocalDebts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [celebrate, setCelebrate] = useState(null);
+  const [verifyDismissed, setVerifyDismissed] = useState(false);
 
   // Si el usuario ya tiene deudas guardadas, se salta el onboarding.
   useEffect(() => {
@@ -1216,10 +1068,19 @@ function MainApp() {
     }
   }, [debtsHook.loading, debtsHook.items.length, onboardPhase]);
 
+  // Recordatorio de verificación de correo, una vez por sesión, no bloqueante.
+  if (currentUser && !currentUser.emailVerified && !verifyDismissed) {
+    return (
+      <div className="w-full mx-auto rounded-3xl overflow-hidden" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)" }}>
+        <VerifyEmailScreen onContinue={() => setVerifyDismissed(true)} />
+      </div>
+    );
+  }
+
   const finishOnboarding = async () => {
     setSaving(true);
     for (const d of localDebts) {
-      await debtsHook.add({ name: d.name, original: d.original, remaining: d.remaining });
+      await debtsHook.add({ name: d.name, original: d.original, remaining: d.remaining, person: d.person, talked: d.talked });
     }
     setSaving(false);
     setOnboardPhase("reveal");
@@ -1249,7 +1110,6 @@ function MainApp() {
 
     const currentRef = doc(db, "users", currentUser.uid, "debts", debt.id);
     const nextRef = next ? doc(db, "users", currentUser.uid, "debts", next.id) : null;
-    const userRef = doc(db, "users", currentUser.uid);
 
     let liquidatedName = null;
 
@@ -1257,55 +1117,29 @@ function MainApp() {
       await runTransaction(db, async (transaction) => {
         // Regla de Firestore: TODAS las lecturas de una transacción deben
         // ocurrir antes que cualquier escritura. Por eso leemos primero
-        // todos los documentos y solo después decidimos qué escribir.
+        // ambos documentos y solo después decidimos qué escribir.
         const currentSnap = await transaction.get(currentRef);
         if (!currentSnap.exists()) throw new Error("Esa deuda ya no existe.");
         const currentData = currentSnap.data();
 
         const nextSnap = nextRef ? await transaction.get(nextRef) : null;
-        const userSnap = await transaction.get(userRef);
-        const userData = userSnap.data() || {};
 
         const newRemaining = currentData.remaining - amount;
-        const nowISO = new Date().toISOString();
-        const currentPayments = currentData.payments || [];
 
         if (newRemaining >= 0) {
-          transaction.update(currentRef, {
-            remaining: newRemaining,
-            payments: [...currentPayments, { amount, date: nowISO }],
-          });
+          transaction.update(currentRef, { remaining: newRemaining });
           if (newRemaining === 0) liquidatedName = currentData.name;
         } else {
           // Bola de nieve: esta deuda se liquida y el sobrante empuja a la
-          // siguiente, leída con el dato más reciente posible. El abono
-          // registrado en el historial de CADA deuda es lo que de verdad
-          // se le aplicó a esa deuda, no el monto total que tecleó el
-          // usuario — así el porcentaje y el historial cuadran siempre.
+          // siguiente, leída con el dato más reciente posible.
           const overflow = Math.abs(newRemaining);
-          const appliedToCurrent = currentData.remaining;
-          transaction.update(currentRef, {
-            remaining: 0,
-            payments: [...currentPayments, { amount: appliedToCurrent, date: nowISO }],
-          });
+          transaction.update(currentRef, { remaining: 0 });
           liquidatedName = currentData.name;
           if (nextSnap && nextSnap.exists()) {
             const nextData = nextSnap.data();
-            const appliedToNext = Math.min(overflow, nextData.remaining);
-            const nextPayments = nextData.payments || [];
-            transaction.update(nextRef, {
-              remaining: Math.max(0, nextData.remaining - overflow),
-              payments: appliedToNext > 0 ? [...nextPayments, { amount: appliedToNext, date: nowISO }] : nextPayments,
-            });
+            transaction.update(nextRef, { remaining: Math.max(0, nextData.remaining - overflow) });
           }
         }
-
-        // Cada abono descuenta de "Disponible esta semana". Si la semana
-        // guardada ya no es la actual, se reinicia el contador en vez de
-        // seguir acumulando sobre una semana pasada.
-        const weekKey = getWeekKey(new Date());
-        const priorSpent = userData.weeklySpentWeekKey === weekKey ? (userData.weeklySpent || 0) : 0;
-        transaction.set(userRef, { weeklySpent: priorSpent + amount, weeklySpentWeekKey: weekKey, updatedAt: serverTimestamp() }, { merge: true });
       });
 
       if (liquidatedName) setCelebrate(liquidatedName);
@@ -1314,20 +1148,16 @@ function MainApp() {
     }
   };
 
-  const handleDeleteDebt = async (debtId) => {
-    await debtsHook.remove(debtId);
-  };
-
   const handleContribute = async (goal, amount) => {
     await goalsHook.update(goal.id, { saved: Math.min(goal.target, goal.saved + amount) });
   };
 
-  const updatePartner = (partial) => {
-    userDoc.update({ partner: { ...userDoc.data?.partner, ...partial } });
+  const handleToggleTalked = async (debt) => {
+    await debtsHook.update(debt.id, { talked: !debt.talked });
   };
 
-  const updateIncome = (amount, frequency) => {
-    userDoc.update({ income: amount, incomeFrequency: frequency });
+  const updatePartner = (partial) => {
+    userDoc.update({ partner: { ...userDoc.data?.partner, ...partial } });
   };
 
   const completeReview = () => {
@@ -1356,29 +1186,23 @@ function MainApp() {
   }
 
   const partner = userDoc.data?.partner || { status: "none", name: "", email: "", sharing: { debts: false, purpose: false, panel: false, diary: false } };
-  const isPlus = userDoc.data?.plan === "plus";
   const isConnected = partner.status === "connected";
   const streak = userDoc.data?.streak || 1;
 
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden flex flex-col relative" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)", background: palette.paper }}>
       <div className="flex-1 overflow-y-auto">
-        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} income={userDoc.data?.income} incomeFrequency={userDoc.data?.incomeFrequency} onSetIncome={updateIncome} weeklySpent={userDoc.data?.weeklySpent} weeklySpentWeekKey={userDoc.data?.weeklySpentWeekKey} />}
-        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} onDeleteDebt={handleDeleteDebt} shared={isConnected && partner.sharing.debts} />}
-        {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onUpdateGoal={goalsHook.update} onDeleteGoal={goalsHook.remove} shared={isConnected && partner.sharing.purpose} />}
+        {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} />}
+        {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} shared={isConnected && partner.sharing.debts} />}
+        {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
+        {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
-        {tab === "partner" && (
-          isPlus
-            ? <PartnerScreen partner={partner} updatePartner={updatePartner} />
-            : <PartnerPaywall onUnlockDemo={() => userDoc.update({ plan: "plus" })} />
-        )}
+        {tab === "partner" && <PartnerScreen partner={partner} updatePartner={updatePartner} />}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}
-        {tab === "about" && <AboutScreen />}
-        {tab === "account" && <AccountScreen userDoc={userDoc} />}
+        {tab === "account" && <AccountScreen />}
       </div>
-      <BottomNav tab={tab} setTab={setTab} onOpenMore={() => setMoreOpen(true)} />
-      {moreOpen && <MoreMenu onSelect={(key) => { setTab(key); setMoreOpen(false); }} onClose={() => setMoreOpen(false)} />}
+      <BottomNav tab={tab} setTab={setTab} />
       {celebrate && <CelebrationModal debtName={celebrate} onClose={() => setCelebrate(null)} />}
     </div>
   );
