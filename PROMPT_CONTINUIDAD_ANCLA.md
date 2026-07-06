@@ -1,5 +1,4 @@
 # CONTEXTO DEL PROYECTO — ANCLA
-**Dominio oficial: tuancla.com**
 *(Pega esto completo al inicio de un chat nuevo con Claude para continuar exactamente donde se quedó)*
 
 ---
