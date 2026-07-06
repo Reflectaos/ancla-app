@@ -336,3 +336,22 @@ Términos del producto que no son autoexplicativos por su nombre técnico:
 - **Score de Salud Financiera** — índice propio (no bancario) compuesto por Claridad + Constancia + Progreso.
 
 Para el "por qué" detrás de cada uno de estos términos, ver `DOCUMENTO_MAESTRO.md`.
+
+---
+
+## 11. Actualización — Reglas de Firestore con validación de esquema (resuelto)
+
+**Fecha de esta actualización:** ver historial de commits.
+
+Se reemplazaron las reglas restrictivas-solo-por-dueño por reglas que también validan forma y tipo de dato en cada colección (`firestore.rules`):
+
+- `users/{uid}`: valida claves permitidas (`hasOnly`), tipos de `name`/`email`/`createdAt`, y valida la forma completa del mapa `partner` (incluyendo el enum de `status` y los 4 booleanos de `sharing`).
+- `debts/{debtId}`: valida `name` (string, 1–199 chars), `original`/`remaining` (number ≥ 0), `person` (bool), `talked` (bool opcional).
+- `goals/{goalId}`: valida `person` (string requerido), `why` (string opcional), `target`/`saved` (number ≥ 0).
+- `diaryEntries/{entryId}`: valida `mood` contra el enum real (`verguenza`, `miedo`, `alivio`, `orgullo`) y `text` opcional con límite de tamaño.
+
+Esto cierra el hueco de seguridad descrito en la sección 5.2: un cliente malicioso (o un bug) ya no puede escribir campos arbitrarios en ningún documento — solo puede escribir exactamente la forma que la UI real produce.
+
+**Cómo desplegar:** `firebase deploy --only firestore:rules` desde la raíz del proyecto (requiere Firebase CLI autenticado y `firebase.json` apuntando a este archivo).
+
+**Pendiente de verificar:** correr el Firebase Emulator Suite con casos de prueba (escritura con campo extra, tipo incorrecto, mood fuera del enum) antes de desplegar a producción — no hay tests automatizados de reglas todavía.
