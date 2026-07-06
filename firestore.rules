@@ -82,13 +82,14 @@ service cloud.firestore {
       // Ver ESPECIFICACION_TECNICA.md, sección 4.3.
       match /goals/{goalId} {
         function isValidGoal(data) {
-          return data.keys().hasOnly(['person', 'why', 'target', 'saved', 'createdAt', 'targetDate'])
+          return data.keys().hasOnly(['person', 'why', 'target', 'saved', 'createdAt', 'targetDate', 'contributions'])
             && data.person is string && data.person.size() > 0 && data.person.size() < 200
             && (!('why' in data) || (data.why is string && data.why.size() < 500))
             && data.target is number && data.target >= 0
             && data.saved is number && data.saved >= 0
             && (!('createdAt' in data) || data.createdAt is timestamp)
-            && (!('targetDate' in data) || data.targetDate is timestamp);
+            && (!('targetDate' in data) || data.targetDate is timestamp)
+            && (!('contributions' in data) || (data.contributions is list && data.contributions.size() < 500));
         }
         allow read, delete: if isOwner();
         allow create, update: if isOwner() && isValidGoal(request.resource.data);

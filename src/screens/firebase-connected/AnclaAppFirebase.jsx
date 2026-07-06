@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   X,
   MoreHorizontal,
+  Receipt,
 } from "lucide-react";
 import { doc, runTransaction, arrayUnion } from "firebase/firestore";
 import { db } from "../../firebase";
@@ -1365,11 +1366,44 @@ function PartnerLockedScreen({ onGoAccount }) {
     </div>
   );
 }
+function ConversationsLockedScreen() {
+  return (
+    <div className="p-6 text-center">
+      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Conversaciones</p>
+      <h2 className="text-2xl mb-4" style={{ ...serif, color: palette.paperText }}>Disponible en Ancla Plus.</h2>
+      <div className="rounded-xl p-8" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+        <MessageCircle size={28} color={palette.dawn} className="mx-auto mb-4" />
+        <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>
+          Las plantillas de conversación honesta para deudas con personas — y el checklist de quién ya te falta por
+          hablar — llegan en la versión de paga de ANCLA.
+        </p>
+        <span className="text-xs px-3 py-1.5 rounded-full" style={{ ...sans, background: palette.dawnSoft, color: palette.ink }}>Próximamente</span>
+      </div>
+    </div>
+  );
+}
+function TicketAnalysisLockedScreen() {
+  return (
+    <div className="p-6 text-center">
+      <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.pine }}>Analiza mi ticket de compra</p>
+      <h2 className="text-2xl mb-4" style={{ ...serif, color: palette.paperText }}>Disponible en Ancla Plus.</h2>
+      <div className="rounded-xl p-8" style={{ background: palette.paperCard, border: `1px solid ${palette.paperLine}` }}>
+        <Receipt size={28} color={palette.dawn} className="mx-auto mb-4" />
+        <p className="text-sm leading-relaxed mb-5" style={{ ...sans, color: palette.ashPaper }}>
+          Sube una foto de tu ticket de compra y recibe un análisis financiero de lo que listaste: si fue una compra
+          básica, requerida, compulsiva o innecesaria — sin juicio, solo claridad. Llega en la versión de paga de ANCLA.
+        </p>
+        <span className="text-xs px-3 py-1.5 rounded-full" style={{ ...sans, background: palette.dawnSoft, color: palette.ink }}>Próximamente</span>
+      </div>
+    </div>
+  );
+}
 function MoreScreen({ onNavigate }) {
   const items = [
     { key: "health", label: "Salud financiera", desc: "Tu score de claridad, constancia y progreso", icon: Activity },
-    { key: "conversations", label: "Conversaciones pendientes", desc: "Plantillas honestas para deudas con personas", icon: MessageCircle },
+    { key: "conversations", label: "Conversaciones pendientes", desc: "Plantillas honestas — Ancla Plus", icon: MessageCircle },
     { key: "partner", label: "Pareja", desc: "Modo compartido — Ancla Plus", icon: Users },
+    { key: "ticket", label: "Analiza mi ticket de compra", desc: "Análisis con foto — Ancla Plus", icon: Receipt },
     { key: "about", label: "Acerca de...", desc: "Sobre ANCLA y Reflecta AI", icon: Moon },
   ];
   return (
@@ -1408,7 +1442,7 @@ function BottomNav({ tab, setTab }) {
   ];
   // "more" agrupa Salud, Conversaciones, Pareja (Ancla Plus) y Acerca de —
   // se resalta activo también cuando el tab actual es uno de esos.
-  const groupedInMore = ["health", "conversations", "partner", "about"];
+  const groupedInMore = ["health", "conversations", "partner", "about", "ticket"];
   return (
     <div className="flex items-center justify-center gap-1 py-3 px-2" style={{ background: palette.paperCard, borderTop: `1px solid ${palette.paperLine}` }}>
       {items.map((it) => {
@@ -1534,7 +1568,10 @@ function MainApp() {
   };
 
   const handleContribute = async (goal, amount) => {
-    await goalsHook.update(goal.id, { saved: Math.min(goal.target, goal.saved + amount) });
+    await goalsHook.update(goal.id, {
+      saved: Math.min(goal.target, goal.saved + amount),
+      contributions: arrayUnion({ amount, date: new Date() }),
+    });
   };
 
   const handleDeleteDebt = async (debt) => {
@@ -1577,6 +1614,12 @@ function MainApp() {
       for (const p of d.payments || []) {
         const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
         if (pDate >= monday) paidThisWeek += p.amount;
+      }
+    }
+    for (const g of goalsHook.items) {
+      for (const c of g.contributions || []) {
+        const cDate = c.date?.toDate ? c.date.toDate() : new Date(c.date);
+        if (cDate >= monday) paidThisWeek += c.amount;
       }
     }
     return Math.max(0, weeklyIncome - paidThisWeek);
@@ -1624,10 +1667,11 @@ function MainApp() {
       <div className="flex-1 overflow-y-auto">
         {tab === "home" && <TruthPanel debts={debtsHook.items} streak={streak} onGoRadar={() => setTab("radar")} name={firstName} shared={isConnected && partner.sharing.panel} weeklyAvailable={computeWeeklyAvailable()} hasIncome={!!userDoc.data?.income?.amount} onGoAccount={() => setTab("account")} />}
         {tab === "radar" && <DebtRadar debts={debtsHook.items} onPay={handlePay} onAddDebt={debtsHook.add} onDeleteDebt={handleDeleteDebt} shared={isConnected && partner.sharing.debts} />}
-        {tab === "conversations" && <ConversationsScreen debts={debtsHook.items} onToggleTalked={handleToggleTalked} />}
+        {tab === "conversations" && <ConversationsLockedScreen />}
         {tab === "purpose" && <PurposeScreen goals={goalsHook.items} onAddGoal={goalsHook.add} onContribute={handleContribute} onEditGoal={handleEditGoal} onDeleteGoal={handleDeleteGoal} shared={isConnected && partner.sharing.purpose} />}
         {tab === "health" && <HealthScoreScreen debts={debtsHook.items} streak={streak} />}
         {tab === "partner" && <PartnerLockedScreen />}
+        {tab === "ticket" && <TicketAnalysisLockedScreen />}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}
         {tab === "account" && <AccountScreen />}

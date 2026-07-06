@@ -375,3 +375,12 @@ Cambios en `src/screens/firebase-connected/AnclaAppFirebase.jsx`:
 **Reglas de Firestore actualizadas** (`firestore.rules`) para validar los campos nuevos: `income` y `dailyReminderEnabled` en `users/{uid}`; `payments` en `debts`; `targetDate` en `goals`.
 
 **Pendiente conocido, no resuelto en este lote:** la ruptura de racha tras dos revisiones semanales seguidas sin completar (`streak`) sigue sin implementarse — ver sección 11, nota de la Cloud Function `resetWeeklyReview`.
+
+---
+
+## 13. Actualización — Conversaciones bloqueada, disponible semanal incluye metas, nueva sección de tickets
+
+- **Conversaciones pendientes** se movió a pantalla "Disponible en Ancla Plus" (`ConversationsLockedScreen`), igual que Pareja. El código de `ConversationsScreen`/`ConversationCard`/`buildTemplate` se conserva sin usar por si se reactiva con la capa de pago.
+- **"Disponible esta semana"** ahora también resta los aportes a metas de Propósito, no solo los abonos a deuda (decisión de producto confirmada). Cada aporte se guarda en `contributions` (array de `{ amount, date }`) dentro del documento de la meta, igual que `payments` en deudas. `firestore.rules` actualizado para permitir y acotar este campo.
+- **Nueva sección "Analiza mi ticket de compra"**: agregada al menú "Más" como pantalla "Disponible en Ancla Plus" (`TicketAnalysisLockedScreen`). Descripción: el usuario podrá subir la foto de un ticket de compra y recibir un análisis de si cada renglón fue una compra básica, requerida, compulsiva o innecesaria.
+  **Nota técnica importante, no resuelta todavía:** esta pantalla hoy es solo el teaser/bloqueo — no hay integración real de análisis de imagen. El usuario mencionó GROK (xAI) como el modelo previsto para ese análisis; construir esa integración real (subida de imagen, llamada al proveedor elegido, parseo de la respuesta a básica/requerida/compulsiva/innecesaria) es trabajo aparte, pendiente de decisión técnica (qué proveedor, dónde vive la llamada — probablemente una Cloud Function para no exponer la API key en el cliente).
