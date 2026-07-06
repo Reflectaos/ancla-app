@@ -1,7 +1,7 @@
 # ESPECIFICACIÓN TÉCNICA — ANCLA
 ## Manual técnico para el equipo de desarrollo
 
-Versión: 2.2 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1400 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
+Versión: 2.3 · Basado en `src/screens/firebase-connected/AnclaAppFirebase.jsx` (~1450 líneas) · Complementa a `DOCUMENTO_MAESTRO.md`
 
 ---
 
@@ -254,6 +254,59 @@ Sin cambios respecto a v1.0 — pendiente de auditoría completa. Los toggles si
 
 ---
 
+## 13.5 Guía de despliegue a producción (web / PWA)
+
+Decisión de producto para este lanzamiento: **solo web, como PWA instalable**, y **solo Nivel 1 gratis** — Ancla Plus (Pareja) queda visible como "Disponible próximamente" sin cobro real todavía. Estos pasos asumen esa decisión.
+
+### Paso 0 — Separar Firebase de desarrollo y de producción
+No uses el mismo proyecto de Firebase donde hemos estado probando. En la [consola de Firebase](https://console.firebase.google.com):
+1. Crea un proyecto nuevo, p. ej. `ancla-prod`.
+2. Activa Authentication (correo/contraseña) y Firestore igual que en el de desarrollo.
+3. Copia su `firebaseConfig` a `src/firebase.js` — o, mejor, muévelo a variables de entorno (`import.meta.env.VITE_FIREBASE_*`) para no mezclar credenciales de dev y prod en el mismo archivo versionado.
+
+### Paso 1 — Instalar Firebase CLI y autenticarte (una sola vez, en tu Codespace)
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+### Paso 2 — Conectar el repo a tus dos proyectos
+```bash
+cd /workspaces/ancla-app
+firebase use --add        # elige ancla-dev (o el que uses hoy), alias "dev"
+firebase use --add        # elige ancla-prod, alias "prod"
+```
+Esto genera tu propio `.firebaserc` real (el `.firebaserc.example` de este entregable es solo referencia — no lo copies tal cual, tiene un ID de ejemplo).
+
+### Paso 3 — Publicar las reglas de Firestore ya reforzadas (sección 5)
+```bash
+firebase deploy --only firestore:rules --project prod
+```
+**Antes de este paso**, prueba las reglas con el Emulator Suite (`firebase emulators:start`) — no las hemos podido probar en vivo desde este entorno de trabajo. En particular verifica: que un usuario nuevo se pueda registrar, que pueda abonar a una deuda antigua que aún tenga campos `person`/`talked` huérfanos, y que un intento de escribir `plan: "plus"` directamente sea rechazado.
+
+### Paso 4 — Desplegar la Cloud Function del reseteo semanal
+Requiere el plan **Blaze** (pago por uso) de Firebase — Cloud Scheduler no está disponible en el plan gratuito Spark.
+```bash
+cd functions && npm install && cd ..
+firebase deploy --only functions --project prod
+```
+
+### Paso 5 — Compilar y publicar el sitio
+```bash
+npm run build
+firebase deploy --only hosting --project prod
+```
+Esto te da una URL en `*.web.app` / `*.firebaseapp.com`. Para un dominio propio: Firebase Hosting → "Agregar dominio personalizado" en la consola, y sigue la verificación DNS que te indique — cada dominio es distinto, no hay un paso genérico universal aquí.
+
+### Qué probar después de publicar
+- Instalar la PWA de verdad (Chrome/Edge en escritorio: ícono de instalar en la barra de direcciones; Android: "Agregar a pantalla de inicio"; iOS Safari: compartir → "Agregar a inicio").
+- Registro completo → llega el correo de verificación → "Ya lo verifiqué" te deja entrar.
+- "¿Olvidaste tu contraseña?" de punta a punta.
+- Que la pestaña Pareja muestre "Disponible próximamente" y no tenga forma de activarse.
+
+### Lo que sigue pendiente incluso después de este despliegue
+No resuelto en este documento — ver sección 15: verificación de correo *obligando* reenvío tras cierto tiempo, notificaciones push reales, aviso de privacidad y términos de uso (borrador legal, no incluido aquí — no soy abogado y esto sí necesita revisión profesional dado que la app maneja datos financieros y un diario emocional), y monitoreo de errores en producción (Sentry o similar).
+
 ## 14. Roadmap técnico (Nivel 3, ver Documento Maestro sección 17)
 
 1. Verificación de correo + recuperación de contraseña.
@@ -273,14 +326,17 @@ Sin cambios respecto a v1.0 — pendiente de auditoría completa. Los toggles si
 - [ ] Centralizar paleta/tipografía en `src/theme/`.
 - [ ] Cargar las fuentes reales vía `@font-face` o Google Fonts.
 - [x] Migrar `handlePay` a `runTransaction()` — resuelto en v1.1.
-- [ ] Implementar reseteo semanal de `reviewCompletedThisWeek`.
-- [ ] Agregar verificación de correo y recuperación de contraseña.
-- [ ] Agregar reglas de validación de esquema en `firestore.rules` (ahora también cubre `income`, `weeklySpent`, `targetDate`, etc.).
-- [ ] Mover `firebaseConfig` a variables de entorno por ambiente.
+- [x] Implementar reseteo semanal de `reviewCompletedThisWeek` — resuelto en v2.3 (Cloud Function programada, `functions/index.js`), pendiente de que el equipo la despliegue (requiere plan Blaze).
+- [x] Agregar verificación de correo y recuperación de contraseña — resuelto en v2.3.
+- [x] Agregar reglas de validación de esquema en `firestore.rules` — resuelto en v2.3, pendiente de probarse con el Emulator Suite antes de desplegar a producción (no se pudo probar en vivo desde este entorno).
+- [ ] Mover `firebaseConfig` a variables de entorno por ambiente — sigue pendiente, ver sección 13.5, Paso 0.
 - [ ] Auditoría de accesibilidad (toggles, contraste).
 - [ ] Decidir y ejecutar: ¿TypeScript sí o no?
-- [ ] **Nuevo:** limpiar campos huérfanos `person`/`talked` en documentos de `debts` creados antes del retiro de Conversaciones (script de una sola vez, opcional).
-- [ ] **Nuevo:** construir la infraestructura real detrás del toggle "Recordatorio diario" (FCM + Cloud Scheduler + captura de hora preferida) o, si no se va a construir pronto, considerar ocultarlo para no prometer algo que la app todavía no hace.
+- [ ] **Nuevo:** monitoreo de errores en producción (Sentry o similar) — no configurado.
+- [ ] **Nuevo:** aviso de privacidad y términos de uso — no redactados. Requiere revisión legal real, no solo texto genérico, dado el tipo de datos que maneja la app.
+- [ ] Limpiar campos huérfanos `person`/`talked` en documentos de `debts` creados antes del retiro de Conversaciones (script de una sola vez, opcional — y ahora además explícitamente tolerados por `firestore.rules` para no romper nada mientras no se limpien).
+- [ ] Construir la infraestructura real detrás del toggle "Recordatorio diario" (FCM + Cloud Scheduler + captura de hora preferida) o considerar ocultarlo mientras tanto.
+- [ ] **Nuevo:** cobro real de Ancla Plus (Stripe/RevenueCat) — el paywall de Pareja hoy solo dice "Disponible próximamente", sin ninguna integración de cobro detrás. Cuando se construya, `plan` deberá escribirse exclusivamente desde un backend con Admin SDK (webhook de Stripe → Cloud Function) — las reglas de Firestore de esta versión ya bloquean que el cliente lo modifique directamente, así que ese backend es la única pieza que falta para que el paywall sea real.
 
 ---
 
@@ -301,7 +357,15 @@ Para el "por qué" detrás de cada uno de estos términos, ver `DOCUMENTO_MAESTR
 
 ## 17. Changelog
 
-- **v2.2** (esta versión): primer paywall real del proyecto. La pestaña Pareja ahora está detrás de `plan === "plus"` en `users/{uid}` — si el usuario no tiene Plus, ve `PartnerPaywall` (explicación + botón de "activar" que hoy es un marcador de posición sin cobro real, documentado como tal en el propio código y en sección 9, punto 7). El botón "Pareja" dentro del menú "Más" ahora muestra una etiqueta "Plus". Los íconos de la navegación inferior se centraron (antes alineados a la izquierda).
+- **v2.3** (esta versión) — primera pasada real de preparación para producción, con decisión de alcance: solo web/PWA, solo Nivel 1 gratis por ahora:
+  - Verificación de correo obligatoria tras registrarse (`VerifyEmailScreen`) y recuperación de contraseña (`ForgotPasswordScreen`), ambas sobre Firebase Auth nativo — sin backend adicional.
+  - `firestore.rules` reescritas con validación de esquema por colección (tipos de campo, lista blanca de campos permitidos) y protección explícita del campo `plan` para que solo un backend con Admin SDK pueda otorgarlo — el cliente ya no puede dárselo a sí mismo.
+  - Paywall de Pareja simplificado: ya no tiene el botón de activación de prueba, ahora dice "Disponible próximamente" — acorde a que Ancla Plus se lanza después.
+  - Soporte PWA completo: manifest, ícono de marca, service worker (`vite-plugin-pwa`), instalable en escritorio, Android e iOS. Las llamadas a Firebase Auth/Firestore están explícitamente excluidas de la caché — la app es instalable, no funciona offline por diseño.
+  - Separación de chunks de build (`firebase`, `vendor`, app) — bajó el bundle principal de ~680 KB a ~80 KB, el resto se carga en paralelo y se cachea aparte.
+  - Cloud Function programada (`functions/index.js`) para el reseteo semanal de `reviewCompletedThisWeek`, pendiente de despliegue por el equipo (plan Blaze).
+  - `firebase.json` + plantilla de `.firebaserc.example` para desplegar a Firebase Hosting. Ver guía completa en sección 13.5.
+- **v2.2**: primer paywall real del proyecto. La pestaña Pareja ahora está detrás de `plan === "plus"` en `users/{uid}` — si el usuario no tiene Plus, ve `PartnerPaywall` (explicación + botón de "activar" que hoy es un marcador de posición sin cobro real, documentado como tal en el propio código y en sección 9, punto 7). El botón "Pareja" dentro del menú "Más" ahora muestra una etiqueta "Plus". Los íconos de la navegación inferior se centraron (antes alineados a la izquierda).
 - **v2.1**: cada `DebtRow` del Radar de Deudas ahora muestra el porcentaje pagado como texto y el historial de abonos (monto + fecha) dentro de la misma tarjeta. Nuevo campo `payments` en `debts`. La lógica de bola de nieve registra el abono real aplicado tanto en la deuda liquidada como en la siguiente que recibe el sobrante, dentro de la misma transacción atómica de `handlePay`.
 - **v2.0**:
   - **Retirado por completo el módulo de Conversaciones Pendientes** (`ConversationsScreen`, `ConversationCard`, `buildTemplate()`, y los campos `person`/`talked` en `debts` que solo existían para esto). Documentos de deudas creados antes de este cambio pueden conservar esos campos como datos huérfanos sin efecto en la UI.

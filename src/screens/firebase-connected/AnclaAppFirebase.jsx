@@ -184,17 +184,55 @@ function LoadingScreen({ label }) {
 // =============================================================================
 // AUTENTICACIÓN — pantallas (ahora contra Firebase Auth real)
 // =============================================================================
+function ForgotPasswordScreen({ onBack }) {
+  const { resetPassword, authError, setAuthError } = useAuth();
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!email) return setAuthError("Escribe tu correo primero.");
+    setBusy(true);
+    const ok = await resetPassword(email);
+    setBusy(false);
+    if (ok) setSent(true);
+  };
+  return (
+    <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
+      <div className="max-w-md mx-auto w-full">
+        <button onClick={onBack} className="flex items-center gap-2 mb-8" style={{ ...sans, color: palette.ash }}>
+          <ArrowLeft size={16} /> <span className="text-sm">Volver</span>
+        </button>
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Recuperar acceso</p>
+        <h1 className="text-2xl mb-2" style={{ ...serif, color: palette.inkText }}>Sin juicios, solo un enlace.</h1>
+        {sent ? (
+          <p className="text-sm leading-relaxed mt-4" style={{ ...sans, color: palette.ash }}>
+            Si <span style={{ color: palette.inkText }}>{email}</span> tiene una cuenta con nosotros, ya le enviamos un enlace para restablecer la contraseña. Revisa también spam.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>Te mandamos un enlace a tu correo para elegir una contraseña nueva.</p>
+            <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
+            {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
+            <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%" }}>{busy ? "Enviando..." : "Enviar enlace"} {!busy && <ArrowRight size={16} />}</PrimaryButton>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 function LoginScreen({ onGoSignup }) {
   const { login, authError, setAuthError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const submit = async () => {
     if (!email || !password) return setAuthError("Completa correo y contraseña.");
     setBusy(true);
     await login(email, password);
     setBusy(false);
   };
+  if (forgot) return <ForgotPasswordScreen onBack={() => { setForgot(false); setAuthError(""); }} />;
   return (
     <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
       <div className="max-w-md mx-auto w-full">
@@ -214,6 +252,7 @@ function LoginScreen({ onGoSignup }) {
         </div>
         <TextField icon={Mail} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" dark />
         <TextField icon={Lock} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Contraseña" dark onKeyDown={(e) => e.key === "Enter" && submit()} />
+        <button onClick={() => { setForgot(true); setAuthError(""); }} className="text-xs underline mb-4" style={{ ...sans, color: palette.ash }}>¿Olvidaste tu contraseña?</button>
         {authError && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>{authError}</p>}
         <PrimaryButton onClick={submit} disabled={busy} style={{ width: "100%", marginBottom: 16 }}>
           {busy ? "Entrando..." : "Iniciar sesión"} {!busy && <ArrowRight size={16} />}
@@ -263,10 +302,54 @@ function SignupScreen({ onGoLogin }) {
     </div>
   );
 }
+function VerifyEmailScreen() {
+  const { currentUser, resendVerification, refreshUser, logout } = useAuth();
+  const [status, setStatus] = useState("idle"); // idle | sent | checking | notyet
+  const resend = async () => {
+    setStatus("sending");
+    const ok = await resendVerification();
+    setStatus(ok ? "sent" : "idle");
+  };
+  const check = async () => {
+    setStatus("checking");
+    const verified = await refreshUser();
+    setStatus(verified ? "idle" : "notyet");
+  };
+  return (
+    <div className="min-h-full flex flex-col justify-center p-8" style={{ background: palette.ink }}>
+      <div className="max-w-md mx-auto w-full text-center">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-6" style={{ background: palette.inkSoft, border: `1px solid ${palette.inkLine}` }}>
+          <Mail size={22} color={palette.dawnSoft} />
+        </div>
+        <p className="text-xs tracking-widest uppercase mb-3" style={{ ...sans, color: palette.dawnSoft }}>Un último paso</p>
+        <h1 className="text-2xl mb-3" style={{ ...serif, color: palette.inkText }}>Verifica tu correo.</h1>
+        <p className="text-sm leading-relaxed mb-8" style={{ ...sans, color: palette.ash }}>
+          Te enviamos un enlace a <span style={{ color: palette.inkText }}>{currentUser?.email}</span>. Ábrelo y vuelve aquí.
+        </p>
+        {status === "notyet" && <p className="text-xs mb-4" style={{ ...sans, color: "#E39289" }}>Todavía no vemos la verificación. Si ya lo abriste, espera unos segundos y vuelve a intentar.</p>}
+        {status === "sent" && <p className="text-xs mb-4" style={{ ...sans, color: palette.dawnSoft }}>Correo reenviado.</p>}
+        <PrimaryButton onClick={check} disabled={status === "checking"} style={{ width: "100%", marginBottom: 12 }}>
+          {status === "checking" ? "Revisando..." : "Ya lo verifiqué"} {status !== "checking" && <ArrowRight size={16} />}
+        </PrimaryButton>
+        <GhostButton onClick={resend} disabled={status === "sending"} style={{ width: "100%", color: palette.inkText, borderColor: palette.inkLine, marginBottom: 20 }}>
+          {status === "sending" ? "Enviando..." : "Reenviar correo"}
+        </GhostButton>
+        <button onClick={logout} className="text-xs underline" style={{ ...sans, color: palette.ash }}>Usar otra cuenta</button>
+      </div>
+    </div>
+  );
+}
 function AuthGate({ children }) {
   const { currentUser, authLoading } = useAuth();
   const [mode, setMode] = useState("login");
   if (authLoading) return <LoadingScreen label="Verificando tu sesión..." />;
+  if (currentUser && !currentUser.emailVerified) {
+    return (
+      <div className="w-full mx-auto rounded-3xl overflow-hidden" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)" }}>
+        <VerifyEmailScreen />
+      </div>
+    );
+  }
   if (currentUser) return children;
   return (
     <div className="w-full mx-auto rounded-3xl overflow-hidden" style={{ maxWidth: 420, minHeight: 720, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.5)" }}>
@@ -1027,7 +1110,7 @@ function ConnectedPartner({ partner, onToggle, onDisconnect }) {
     </>
   );
 }
-function PartnerPaywall({ onUnlockDemo }) {
+function PartnerPaywall() {
   return (
     <div className="p-6">
       <p className="text-xs tracking-widest uppercase mb-1 mt-2" style={{ ...sans, color: palette.dawn }}>Ancla Plus</p>
@@ -1035,19 +1118,16 @@ function PartnerPaywall({ onUnlockDemo }) {
       <p className="text-sm mb-6 leading-relaxed" style={{ ...sans, color: palette.ashPaper }}>
         El Modo Compartido es parte de Ancla Plus. Tu Nivel 1 — inventario, radar de deudas, hábito ancla, panel de verdad — es y será siempre gratis.
       </p>
-      <div className="rounded-2xl p-6 mb-5 text-center" style={{ background: palette.ink }}>
+      <div className="rounded-2xl p-6 text-center" style={{ background: palette.ink }}>
         <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: palette.dawn }}>
           <Lock size={20} color={palette.ink} />
         </div>
         <p className="text-sm mb-1" style={{ ...serif, color: palette.inkText }}>Comparte tu reconstrucción</p>
-        <p className="text-xs mb-5 leading-relaxed" style={{ ...sans, color: palette.ash }}>
+        <p className="text-xs mb-4 leading-relaxed" style={{ ...sans, color: palette.ash }}>
           Invita a tu pareja y decide, módulo por módulo, qué ve. El Diario Financiero permanece privado por defecto.
         </p>
-        <PrimaryButton onClick={onUnlockDemo} style={{ width: "100%" }}>Ver planes de Ancla Plus <ArrowRight size={16} /></PrimaryButton>
+        <span className="text-xs px-3 py-1.5 rounded-full inline-block" style={{ ...sans, background: palette.inkSoft, color: palette.dawnSoft, border: `1px solid ${palette.inkLine}` }}>Disponible próximamente</span>
       </div>
-      <p className="text-[10px] text-center leading-relaxed" style={{ ...sans, color: palette.ash }}>
-        Nota de desarrollo: todavía no hay cobro real conectado (Stripe/RevenueCat). Este botón es un marcador de posición para poder seguir construyendo y probando el resto de Ancla Plus.
-      </p>
     </div>
   );
 }
@@ -1370,7 +1450,7 @@ function MainApp() {
         {tab === "partner" && (
           isPlus
             ? <PartnerScreen partner={partner} updatePartner={updatePartner} />
-            : <PartnerPaywall onUnlockDemo={() => userDoc.update({ plan: "plus" })} />
+            : <PartnerPaywall />
         )}
         {tab === "diary" && <DiaryScreen entries={diaryHook.items} onAddEntry={diaryHook.add} />}
         {tab === "review" && <WeeklyReview completed={!!userDoc.data?.reviewCompletedThisWeek} onComplete={completeReview} />}

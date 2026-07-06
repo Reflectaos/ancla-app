@@ -5,6 +5,8 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
+  sendEmailVerification,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase";
@@ -37,6 +39,8 @@ function mapFirebaseError(code) {
       return "La contraseña necesita al menos 6 caracteres.";
     case "auth/too-many-requests":
       return "Demasiados intentos. Espera un momento y vuelve a intentar.";
+    case "auth/missing-email":
+      return "Escribe tu correo primero.";
     default:
       return "Algo salió mal. Intenta de nuevo.";
   }
@@ -80,6 +84,10 @@ export function AuthProvider({ children }) {
         email: email.trim().toLowerCase(),
         createdAt: serverTimestamp(),
       });
+      // No bloqueamos el registro si el envío del correo falla (p. ej. sin
+      // internet un instante) — el usuario puede pedirlo de nuevo desde
+      // la pantalla de "Verifica tu correo".
+      try { await sendEmailVerification(cred.user); } catch (e) { /* no crítico */ }
       return true;
     } catch (e) {
       setAuthError(mapFirebaseError(e.code));
@@ -89,8 +97,31 @@ export function AuthProvider({ children }) {
 
   const logout = () => signOut(auth);
 
+  const resendVerification = async () => {
+    if (!auth.currentUser) return false;
+    try { await sendEmailVerification(auth.currentUser); return true; } catch (e) { setAuthError(mapFirebaseError(e.code)); return false; }
+  };
+
+  const resetPassword = async (email) => {
+    setAuthError("");
+    try { await sendPasswordResetEmail(auth, email.trim()); return true; } catch (e) { setAuthError(mapFirebaseError(e.code)); return false; }
+  };
+
+  const refreshUser = async () => {
+    if (!auth.currentUser) return false;
+    await auth.currentUser.reload();
+    // reload() no dispara onAuthStateChanged por sí solo — forzamos el
+    // refresco del estado local para que emailVerified se actualice en UI,
+    // y devolvemos el valor fresco directamente (no depender de que el
+    // componente vuelva a renderizar antes de leerlo sería una condición
+    // de carrera de UI).
+    const fresh = auth.currentUser;
+    setCurrentUser({ ...fresh });
+    return fresh.emailVerified;
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, authLoading, login, signup, logout, authError, setAuthError }}>
+    <AuthContext.Provider value={{ currentUser, authLoading, login, signup, logout, authError, setAuthError, resendVerification, resetPassword, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
