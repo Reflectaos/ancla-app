@@ -1,11 +1,113 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-body {
-  margin: 0;
-  background: #0b0d12;
-  display: flex;
-  justify-content: center;
-  padding: 24px 0;
+    match /users/{userId} {
+
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      // --- users/{uid} ------------------------------------------------
+      // Refleja exactamente lo que AuthContext.jsx y useUserDoc.js escriben
+      // (ver ESPECIFICACION_TECNICA.md, sección 4.1 y 4.4).
+
+      function isValidPartner(p) {
+        return p is map
+          && p.keys().hasOnly(['status', 'name', 'email', 'sharing'])
+          && p.status is string && p.status in ['none', 'pending', 'connected']
+          && p.name is string && p.name.size() < 100
+          && p.email is string && p.email.size() < 200
+          && p.sharing is map
+          && p.sharing.keys().hasOnly(['debts', 'purpose', 'panel', 'diary'])
+          && p.sharing.debts is bool
+          && p.sharing.purpose is bool
+          && p.sharing.panel is bool
+          && p.sharing.diary is bool;
+      }
+
+      function isValidIncome(inc) {
+        return inc is map
+          && inc.keys().hasOnly(['amount', 'frequency'])
+          && inc.amount is number && inc.amount >= 0
+          && inc.frequency is string && inc.frequency in ['mensual', 'quincenal', 'semanal'];
+      }
+
+      function isValidUserDoc(data) {
+        return data.keys().hasOnly([
+              'name', 'email', 'createdAt', 'updatedAt',
+              'streak', 'reviewCompletedThisWeek', 'partner',
+              'legalAcceptedVersion', 'legalAcceptedAt',
+              'income', 'dailyReminderEnabled'
+            ])
+          && data.name is string && data.name.size() > 0 && data.name.size() < 100
+          && data.email is string && data.email.size() > 0 && data.email.size() < 200
+          && data.createdAt is timestamp
+          && (!('streak' in data) || (data.streak is number && data.streak >= 0))
+          && (!('reviewCompletedThisWeek' in data) || data.reviewCompletedThisWeek is bool)
+          && (!('partner' in data) || isValidPartner(data.partner))
+          && (!('legalAcceptedVersion' in data) || data.legalAcceptedVersion is string)
+          && (!('legalAcceptedAt' in data) || data.legalAcceptedAt is timestamp)
+          && (!('updatedAt' in data) || data.updatedAt is timestamp)
+          && (!('income' in data) || isValidIncome(data.income))
+          && (!('dailyReminderEnabled' in data) || data.dailyReminderEnabled is bool);
+      }
+
+      allow read: if isOwner();
+      allow create, update: if isOwner() && isValidUserDoc(request.resource.data);
+      allow delete: if isOwner();
+
+      // --- users/{uid}/debts/{debtId} -----------------------------------
+      // Ver ESPECIFICACION_TECNICA.md, sección 4.2.
+      match /debts/{debtId} {
+        function isValidDebt(data) {
+          return data.keys().hasOnly(['name', 'original', 'remaining', 'person', 'talked', 'createdAt', 'payments'])
+            && data.name is string && data.name.size() > 0 && data.name.size() < 200
+            && data.original is number && data.original >= 0
+            && data.remaining is number && data.remaining >= 0
+            && data.person is bool
+            && (!('talked' in data) || data.talked is bool)
+            && (!('createdAt' in data) || data.createdAt is timestamp)
+            // Validación de lista a nivel elemento (map dentro de list) no es
+            // practicable en reglas de Firestore sin iteración — se valida
+            // que sea una lista acotada; la forma de cada entrada la
+            // garantiza el cliente (siempre escribe { amount, date }).
+            && (!('payments' in data) || (data.payments is list && data.payments.size() < 500));
+        }
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner() && isValidDebt(request.resource.data);
+      }
+
+      // --- users/{uid}/goals/{goalId} ------------------------------------
+      // Ver ESPECIFICACION_TECNICA.md, sección 4.3.
+      match /goals/{goalId} {
+        function isValidGoal(data) {
+          return data.keys().hasOnly(['person', 'why', 'target', 'saved', 'createdAt', 'targetDate', 'contributions'])
+            && data.person is string && data.person.size() > 0 && data.person.size() < 200
+            && (!('why' in data) || (data.why is string && data.why.size() < 500))
+            && data.target is number && data.target >= 0
+            && data.saved is number && data.saved >= 0
+            && (!('createdAt' in data) || data.createdAt is timestamp)
+            && (!('targetDate' in data) || data.targetDate is timestamp)
+            && (!('contributions' in data) || (data.contributions is list && data.contributions.size() < 500));
+        }
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner() && isValidGoal(request.resource.data);
+      }
+
+      // --- users/{uid}/diaryEntries/{entryId} ----------------------------
+      // Ver ESPECIFICACION_TECNICA.md, sección 4.5. El dato más sensible
+      // de la app — validación estricta de 'mood' contra el enum real.
+      match /diaryEntries/{entryId} {
+        function isValidDiaryEntry(data) {
+          return data.keys().hasOnly(['mood', 'text', 'createdAt'])
+            && data.mood is string && data.mood in ['verguenza', 'miedo', 'alivio', 'orgullo']
+            && (!('text' in data) || (data.text is string && data.text.size() < 5000))
+            && (!('createdAt' in data) || data.createdAt is timestamp);
+        }
+        allow read, delete: if isOwner();
+        allow create, update: if isOwner() && isValidDiaryEntry(request.resource.data);
+      }
+    }
+  }
 }

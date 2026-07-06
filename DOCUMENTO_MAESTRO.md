@@ -268,14 +268,18 @@ Esto es deliberadamente distinto a los scores de crédito o "salud financiera" q
 
 Justificación central: el público objetivo del libro está, por definición, en crisis financiera. Cobrar por el Inventario de Realidad, el Radar de Deudas o el Hábito Ancla (Nivel 1) traicionaría el propósito del producto — sería pedirle dinero a alguien que está ahí precisamente porque no tiene margen. Esto también es una diferenciación competitiva clara: **YNAB y Monarch no tienen capa gratuita real; Ancla la convierte en su ventaja de entrada.**
 
+**Actualización (v1.0):** dos funciones que originalmente se planeaban 100% de paga se dividieron en versión básica (gratis) + versión avanzada (Ancla Plus), por decisión de producto tomada durante la construcción de v1.0 — se prefiere que el usuario ya sienta el valor de la función antes de pedirle que pague por una versión más profunda de la misma, en vez de esconderla por completo detrás del muro de pago.
+
 | Capa | Contenido | Precio |
 |---|---|---|
-| **Gratis (permanente)** | Todo el Nivel 1: inventario, registro manual, radar de deudas, hábito ancla, panel de verdad | $0 |
-| **Ancla Plus** | Diario financiero avanzado, modo compartido con pareja, score de salud financiera, conversaciones pendientes, notificaciones inteligentes | Suscripción baja, ~$4–6/mes o anual con descuento |
+| **Gratis (permanente)** | Todo el Nivel 1: inventario, registro manual, radar de deudas, hábito ancla, panel de verdad, diario financiero. **Score de Salud Financiera** (versión básica: el índice 0–100 y sus tres factores). **Recordatorio diario** (versión básica: activar/desactivar, hora fija). | $0 |
+| **Ancla Plus** | Modo compartido con pareja, conversaciones pendientes, notificaciones inteligentes, **Analiza mi ticket de compra** (sube la foto de un ticket y recibe el análisis de si cada compra fue básica, requerida, compulsiva o innecesaria). **Score de Salud Financiera Pro** (gráficos más profesionales + gráfico de ingreso vs. gasto). **Recordatorio diario Pro** (elegir la hora exacta, y pausarlo por día — fines de semana u otro día específico). | Suscripción baja, ~$4–6/mes o anual con descuento |
 | **Ancla Comunidad/Coaching** `[EXTENSIÓN]` | Acceso a retos guiados, contenido derivado del libro (audio, reflexiones), directorio de terapeutas/consejeros financieros verificados | Add-on o incluido en Plus |
 | **Recursos del autor** | Libro, cursos, comunidad de lectores — venta cruzada, no obligatoria | Compra única / suscripción aparte |
 
 Se descartan explícitamente: publicidad (rompe la confianza necesaria para que alguien registre su deuda real) y venta de datos financieros (contradice el principio de honestidad que es el corazón del libro).
+
+**Nota técnica (ver ESPECIFICACION_TECNICA.md):** a la fecha de v1.0, "Ancla Plus" no tiene sistema de cobro real — Pareja, Conversaciones y Analiza mi ticket de compra son pantallas "Disponible en Ancla Plus" sin backend de suscripción. Construir el cobro real (Stripe u otro proveedor, campo `plan` en `users/{uid}`, webhook de confirmación) es una decisión de infraestructura pendiente, independiente de qué función va en cada capa.
 
 ---
 
